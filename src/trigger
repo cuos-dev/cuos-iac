@@ -26,7 +26,7 @@ elif [[ "${COMMAND}" = "ps" ]]; then
 
 ## state              - Provide IaC state
 elif [[ "${COMMAND}" = "state" ]]; then
-	cat /tmp/state.json
+	cat /volume/state.json
 
 else
 	echo "No valid command provided. Exiting."

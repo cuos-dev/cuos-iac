@@ -28,11 +28,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image (x64, arm64, arm/v7)
-        uses: docker/build-push-action@v5
+      - name: Build and push Docker image: src
+        uses: docker/build-push-action@v6
         with:
-          context: ./
-          file: ./Dockerfile
+          context: ./src
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/cuos-iac:latest
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          #platforms: linux/amd64,linux/arm64,linux/arm/v7
+
+      - name: Build and push Docker image: webui
+        uses: docker/build-push-action@v6
+        with:
+          context: ./webui
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/cuos-iac:latest
+          #platforms: linux/amd64,linux/arm64,linux/arm/v7

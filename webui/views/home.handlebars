@@ -1,0 +1,160 @@
+<div class="spa-container">
+  <!-- Seite 1: Timer & Update -->
+  <section class="snap-section dark" id="timer-update">
+    <h1>CuOS IaC</h1>
+    <div class="timer-block">
+      <svg class="timer-svg" width="220" height="220" viewBox="0 0 220 220" data-last-update="{{app_state.last_iac_update_check}}" data-iac-state="{{app_state.iac_state}}">
+        <circle class="timer-bg" cx="110" cy="110" r="100"/>
+        <circle class="timer-fg" cx="110" cy="110" r="100" style="stroke-dashoffset: 157px;"/>
+        <text class="timer-text" x="50%" y="54%" text-anchor="middle" alignment-baseline="middle">{{timerMinutes}}:{{timerSeconds}}</text>
+      </svg>
+      <div class="last-update">Last update: {{formatDate app_state.last_iac_update_check}}</div>
+      <form method="POST" action="./send">
+        <input type="hidden" name="command" value="app_update"/>
+        <button class="update-btn" type="submit">Update now</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Container-Tabelle -->
+  <section class="snap-section light" id="container-status">
+    <h1>Container Status</h1>
+    <table class="container-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Created</th>
+          <th>Status</th>
+          <th>Size</th>
+          <th>Ports</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each app_ps}}
+        <tr class="container-row status-{{Status}}">
+          <td class="container-id">{{ID}}</td>
+          <td class="container-name">{{Names}}</td>
+          <td class="container-created">{{RunningFor}}</td>
+          <td class="container-status"><span class="status-label status-{{Status}}">{{Status}}</span></td>
+          <td class="container-size">{{Size}}</td>
+          <td class="container-ports">{{Networks}}<br/>{{{portsLink Ports}}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Seite 3: Systemstatus & Ressourcen als Grid -->
+  <section class="snap-section dark" id="system-status">
+    <div class="sys-flex">
+      <div class="sys-groups">
+        <div class="sys-group sys-main">
+          <h2>System</h2>
+          <div class="sys-row"><span class="sys-label">Status:</span> <span class="sys-value status-{{state.state}}">{{state.state}}</span></div>
+          <div class="sys-row"><span class="sys-label">Virtualized environment:</span> <span class="sys-value">{{resources.virt_type}}</span></div>
+          <div class="sys-row"><span class="sys-label">Version:</span> <span class="sys-value">{{state.version}}</span></div>
+          <div class="sys-row"><span class="sys-label">System start time:</span> <span class="sys-value">{{formatDate state.start_date}}</span></div>
+          <div class="sys-row"><span class="sys-label">Last update:</span> <span class="sys-value">{{formatDate state.last_update_date}}</span></div>
+          <div class="sys-row"><span class="sys-label">Last update check:</span> <span class="sys-value">{{formatDate state.last_update_check}}</span></div>
+          <div class="sys-row"><span class="sys-label">Partition:</span> <span class="sys-value">{{state.partition}}</span></div>
+          <div><span class="sys-label">Update status:</span><br/><span class="sys-value">{{state.update_state}}</span></div>
+        </div>
+        <div class="sys-group sys-iac">
+          <h2>IaC</h2>
+          <div class="sys-row"><span class="sys-label">IaC manager start:</span> <span class="sys-value">{{formatDate app_state.last_iac_start}}</span></div>
+          <div class="sys-row"><span class="sys-label">Repo url:</span> <span class="sys-value">{{#if iac_repo_url}}<a href="{{iac_repo_url}}" target="_blank">{{iac_repo_name}}</a>{{else}}-{{/if}}</span></div>
+          <div class="sys-row"><span class="sys-label">Repo branch:</span> <span class="sys-value">{{#if iac_repo_branch}}{{iac_repo_branch}}{{else}}-{{/if}}</span></div>
+          <div class="sys-row"><span class="sys-label">Repo commit:</span> <span class="sys-value">{{#if app_state.iac_commit}}{{formatDate app_state.iac_commit}}{{else}}-{{/if}}</span></div>
+          <div class="sys-row"><span class="sys-label">Repo update:</span> <span class="sys-value">{{#if app_state.last_iac_update}}{{formatDate app_state.last_iac_update}}{{else}}-{{/if}}</span></div>
+          {{#if app_state.error}}
+            <div class="sys-row"><span class="sys-label">Error:</span> <span class="sys-value error">{{app_state.error}}</span></div>
+          {{/if}}
+        </div>
+        <div class="sys-group sys-network">
+          <h2>Network</h2>
+          {{#each resources.network}}
+          <div class="sys-row"><span class="sys-label">Interface {{plus @index 1}} ({{interface}}):</span> <span class="sys-value">{{ip}}</span></div>
+          {{/each}}
+          <div class="sys-row"><span class="sys-label">Default route:</span> <span class="sys-value">{{resources.default_route_ip}}</span></div>
+          <div class="sys-row"><span class="sys-label">DNS server:</span> <span class="sys-value">{{#if resources.dns_servers}}{{#each resources.dns_servers}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}{{else}}-{{/if}}</span></div>
+          <div class="sys-row"><span class="sys-label">NTP server:</span> <span class="sys-value">{{#if resources.ntp_servers}}{{#each resources.ntp_servers}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}{{else}}-{{/if}}</span></div>
+          <div class="sys-row"><span class="sys-label">NTP service active:</span> <span class="sys-value">{{#if resources.ntp_service_active}}yes{{else}}no{{/if}}</span></div>
+          <div class="sys-row"><span class="sys-label">NTP synchronized:</span> <span class="sys-value">{{#if resources.ntp_synchronizede}}yes{{else}}no{{/if}}</span></div>
+          <div class="network-section" style="margin-top: 10px">
+            <strong>Routes:</strong>
+            <ul style="margin-top: 0">
+              {{#each resources.routes}}
+                <li>{{formatRoute this}}</li>
+              {{/each}}
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="sys-groups">
+        <div class="sys-group sys-resources">
+          <h2>Resources</h2>
+          <div class="resource-bars">
+            {{!-- CPU --}}
+            <div class="resource-bar">
+            <span class="resource-label">CPU</span>
+              <div class="bar-bg">
+                <div class="bar-fg cpu" style="width: {{resources.cpu_usage}}%; background-color: {{getColor resources.cpu_usage}}">
+                </div>
+              </div>
+              <span class="resource-value">{{resources.cpu_usage}}% of {{resources.cpu_cores}} core(s)</span>
+            </div>
+            {{!-- RAM --}}
+            <div class="resource-bar">
+            <span class="resource-label">RAM</span>
+              <div class="bar-bg">
+                <div class="bar-fg ram" style="width: {{resources.ram_percent}}%; background-color: {{getColor resources.ram_percent}}">
+                  <span class="bar-text">{{resources.ram_percent}}%</span>
+                </div>
+              </div>
+              <span class="resource-value">{{resources.mem_used_mb}} / {{resources.mem_total_mb}} MB</span>
+            </div>
+            {{!-- Disk --}}
+            <div class="resource-bar">
+            <span class="resource-label">Disk</span>
+              <div class="bar-bg">
+                <div class="bar-fg disk" style="width: {{resources.disk_percent}}%; background-color: {{getColor resources.disk_percent}}">
+                  <span class="bar-text">{{resources.disk_percent}}%</span>
+                </div>
+              </div>
+              <span class="resource-value">{{resources.disk_used_mb}} / {{resources.disk_total_mb}} MB</span>
+            </div>
+          </div>
+        </div>
+        <div class="sys-group sys-actions">
+          <h2>Actions</h2>
+          <form class="actions-form" action="./send" method="post">
+            <button class="action-btn" type="submit" name="command" value="shutdown">Shutdown</button>
+            <button class="action-btn" type="submit" name="command" value="reboot">Reboot</button>
+            <button class="action-btn" type="submit" name="command" value="update">Manual System Update</button>
+            <br/>
+            <button class="action-btn danger" type="submit" name="command" value="rollback" onclick="return confirm('Rollback OS Update?');">Rollback OS Update</button>
+            <button class="action-btn danger" type="submit" name="command" value="factory-reset" onclick="return confirm('Factory Reset? All data will be lost!');">Factory Reset</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Page 4: Logs -->
+  <section class="snap-section light" id="container-logs">
+    <h1>Last Logs</h1>
+    <div class="logs-container">
+      <div class="logs-content">
+        {{#each last_10_logs}}
+          <div class="log-entry {{toLowerCase this.level}}">
+            <span class="log-timestamp">{{formatDate this.date}}</span>
+            <span class="log-message {{toLowerCase this.level}}">{{this.message}}</span>
+          </div>
+        {{else}}
+          <div class="log-entry no-logs">No logs available.</div>
+        {{/each}}
+      </div>
+  </section>
+</div>
+<script src="./spa.js"></script>

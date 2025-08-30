@@ -8,7 +8,7 @@ CONFIG_PATH="/system.json"
 SOCKET_PATH="/var/run/cuos.sock"
 REPO_DIR="/volume/repo"
 REPO_DIR_SUBDIR=""
-STATE_FILE="/tmp/state.json"
+STATE_FILE="/volume/state.json"
 
 set_error() {
     echo "Error: $*" >&2
@@ -185,7 +185,7 @@ run_docker_compose() {
     # resolve symlinks to get the absolute path
     compose_file=$(realpath "$compose_file")
     echo "[iac-manager] Running docker-compose from $compose_file..." >&2
-    if ! docker-compose -f "$compose_file" config >/dev/null 2>&1; then
+    if ! docker compose -f "$compose_file" config >/dev/null 2>&1; then
         echo "[iac-manager] Invalid docker-compose file: $compose_file" >&2
         return 1
     fi
@@ -193,7 +193,7 @@ run_docker_compose() {
     echo "[iac-manager] Starting services with docker-compose..." >&2
     export COMPOSE_PROJECT_NAME="iac"
 
-    docker-compose -f "$compose_file" pull -q || {
+    docker compose -f "$compose_file" pull -q || {
         echo "[iac-manager] Failed to pull images with docker-compose." >&2
         return 1
     }
@@ -202,7 +202,7 @@ run_docker_compose() {
         return 1
     }
 
-    docker-compose \
+    docker compose \
       -f "$compose_file" \
       up -d \
       --pull never
@@ -216,7 +216,7 @@ run_docker_compose() {
 docker_compose_check_digests() {
   local compose_file="$1"
 
-  images=$(docker-compose -f "$compose_file" config | yq -c '.services[]' -)
+  images=$(docker compose -f "$compose_file" config | yq -c '.services[]' -)
 
   while IFS= read -r image; do
     image_name=$(echo "${image}" | yq -r '.image')
