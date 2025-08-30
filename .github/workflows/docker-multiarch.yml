@@ -41,5 +41,5 @@ jobs:
         with:
           context: ./webui
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/cuos-iac:latest
+          tags: ghcr.io/${{ github.repository_owner }}/cuos-iac-webui:latest
           #platforms: linux/amd64,linux/arm64,linux/arm/v7
