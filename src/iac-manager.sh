@@ -205,6 +205,7 @@ run_docker_compose() {
     docker compose \
       -f "$compose_file" \
       up -d \
+      --remove-orphans \
       --pull never
 
     # remove old images

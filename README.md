@@ -38,7 +38,7 @@ Tipp: Split your docker-compose into multiple files:
 ```yml
 include:
   - path: ./cuos-iac-webui/docker-compose.yml
-  - path: ./dev-container/docker-compose.yml                                    
+  - path: ./dev-container/docker-compose.yml
   - path: ./my-service/docker-compose.yml
 ```
 
@@ -86,7 +86,7 @@ Add the following service to your `docker-compose.yml`:
 ```yml
 services:
   cuos-dev-container:
-    image: "ghcr.io/cuos-dev/cuos-dev-container:latest"
+    image: "ghcr.io/cuos-dev/cuos-iac-dev-container:latest"
     container_name: cuos-dev-container
     network_mode: host
     pid: host
