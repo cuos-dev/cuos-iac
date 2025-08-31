@@ -38,7 +38,7 @@ init_state() {
 
 do-update-ca-certificates() {
     if [ -d "/etc/ssl/certs" ]; then
-        echo "[iac-manager] Updating CA certificates..." >&2
+        echo "[cuos-iac] Updating CA certificates..." >&2
         update-ca-certificates --fresh
     fi
 }
@@ -54,7 +54,7 @@ clone_or_pull_repo() {
         else
             git clone "$repo_url" "$REPO_DIR" || return 1
         fi
-        echo "[iac-manager] Cloned repo from $repo_url" >&2
+        echo "[cuos-iac] Cloned repo from $repo_url" >&2
         return 0
     }
     local repo_url
@@ -62,7 +62,7 @@ clone_or_pull_repo() {
     local repo_branch
     repo_branch="$(jq -r '.iac_repo_branch // empty' "$CONFIG_PATH")"
     if [ -z "$repo_url" ]; then
-        echo "[iac-manager] No repo URL provided." >&2
+        echo "[cuos-iac] No repo URL provided." >&2
         return 1
     fi
     if [ -d "$REPO_DIR/.git" ]; then
@@ -70,7 +70,7 @@ clone_or_pull_repo() {
         local current_url
         current_url=$(git -C "$REPO_DIR" config --get remote.origin.url)
         if [ "$current_url" != "$repo_url" ]; then
-            echo "[iac-manager] Repo URL changed, re-cloning..." >&2
+            echo "[cuos-iac] Repo URL changed, re-cloning..." >&2
             git_clone "$repo_url" "$repo_branch" || return 1
         fi
         # check if repo is up to date
@@ -81,11 +81,11 @@ clone_or_pull_repo() {
         git -C "$REPO_DIR" pull >/dev/null || git_clone "$repo_url" "$repo_branch" || return 1
         commit=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")
         if [ "$commit" == "$last_commit" ]; then
-            echo "[iac-manager] No changes detected: $commit" >&2
+            echo "[cuos-iac] No changes detected: $commit" >&2
             # no updates
             return 3
         fi
-        echo "[iac-manager] Detected new commit: $commit" >&2
+        echo "[cuos-iac] Detected new commit: $commit" >&2
         return 0
     else
         git_clone "$repo_url" "$repo_branch" || return 1
@@ -139,12 +139,12 @@ are_json_files_different() {
 
     local hash_file1
     if ! hash_file1=$(hash_file "${file1}" "${jsonkey}"); then
-        echo "[iac-manager] Invalid JSON file $file1." >&2
+        echo "[cuos-iac] Invalid JSON file $file1." >&2
         return 2
     fi
     local hash_file2
     if ! hash_file2=$(hash_file "${file2}" "${jsonkey}"); then
-        echo "[iac-manager] Invalid JSON file $file2." >&2
+        echo "[cuos-iac] Invalid JSON file $file2." >&2
         return 2
     fi
 
@@ -157,7 +157,7 @@ are_json_files_different() {
 apply_system_json_if_changed() {
     local repo_system_json="${REPO_DIR}${REPO_DIR_SUBDIR}/system.json"
     if [ ! -f "$repo_system_json" ]; then
-        return
+        return 1
     fi
     local need_update_ca_certs=0
     if are_json_files_different "${repo_system_json}" "${CONFIG_PATH}" custom_ca_certs; then
@@ -165,40 +165,43 @@ apply_system_json_if_changed() {
     fi
 
     if are_json_files_different "${repo_system_json}" "${CONFIG_PATH}"; then
-        echo "[iac-manager] Applying new system.json via socket..." >&2
-        jq '{"config": .}' "$repo_system_json" | cuos_api "reinit" "-"
-        # TODO check result
+        echo "[cuos-iac] Applying new system.json via socket..." >&2
+        jq '{"config": .}' "$repo_system_json" | cuos_api "update" "-"
+    else
+        # no changes
+        return 3
     fi
 
     # CA certificates might have changed, so we update them
     if [[ "${need_update_ca_certs}" == "1" ]]; then
         do_update_ca_certificates
     fi
+    return 0
 }
 
 run_docker_compose() {
     local compose_file="${REPO_DIR}${REPO_DIR_SUBDIR}/docker-compose.yml"
     if [ ! -f "$compose_file" ]; then
-        echo "[iac-manager] No docker-compose.yml found in repo." >&2
-        return
+        echo "[cuos-iac] No docker-compose.yml found in repo." >&2
+        return 1
     fi
     # resolve symlinks to get the absolute path
-    compose_file=$(realpath "$compose_file")
-    echo "[iac-manager] Running docker-compose from $compose_file..." >&2
+    compose_file="$(realpath "$compose_file")"
+    echo "[cuos-iac] Running docker-compose from $compose_file..." >&2
     if ! docker compose -f "$compose_file" config >/dev/null 2>&1; then
-        echo "[iac-manager] Invalid docker-compose file: $compose_file" >&2
+        echo "[cuos-iac] Invalid docker-compose file: $compose_file" >&2
         return 1
     fi
     # Run docker-compose with the resolved absolute path
-    echo "[iac-manager] Starting services with docker-compose..." >&2
+    echo "[cuos-iac] Starting services with docker-compose..." >&2
     export COMPOSE_PROJECT_NAME="iac"
 
     docker compose -f "$compose_file" pull -q || {
-        echo "[iac-manager] Failed to pull images with docker-compose." >&2
+        echo "[cuos-iac] Failed to pull images with docker-compose." >&2
         return 1
     }
     docker_compose_check_digests "$compose_file" || {
-        echo "[iac-manager] Image digest check failed." >&2
+        echo "[cuos-iac] Image digest check failed." >&2
         return 1
     }
 
@@ -243,26 +246,33 @@ do-update-ca-certificates
 counter=0
 while true; do
     if [ ! -f "$CONFIG_PATH" ]; then
-        echo "[iac-manager] $CONFIG_PATH not found, waiting..." >&2
+        echo "[cuos-iac] $CONFIG_PATH not found, waiting..." >&2
         sleep 10
         continue
     fi
-    state="$(clone_or_pull_repo)"
+    clone_or_pull_repo
+    state="$?"
     # repo is there:
     if [[ "${state}" != "1" ]]; then
-        REPO_DIR_SUBDIR=$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")
+        REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")"
         if [ -n "$REPO_DIR_SUBDIR" ]; then
             REPO_DIR_SUBDIR="/$REPO_DIR_SUBDIR"
         fi
+        system_json_changed="-1"
         # repo has update / is new:
         if [[ "${state}" == "0" ]]; then
-            commit=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")
+            commit="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")"
             set_state --arg commit "${commit}" '.iac_commit = $commit'
             apply_system_json_if_changed
+            system_json_changed="$?"
             set_state '.last_iac_update = (now | todate)'
             counter=0
         fi
-        run_docker_compose
+	if [[ "${system_json_changed}" == "0" ]]; then
+            run_docker_compose --force-recreate
+        else
+            run_docker_compose
+        fi
 
         # poll os update, only needed if digest is empty
         OS_DIGEST="$(jq -r '.os_image_digest // empty' "${CONFIG_PATH}")"
@@ -274,11 +284,14 @@ while true; do
                 counter=0
             fi
         fi
+        set_state '.iac_state = "idle"'
+    else
+      echo "[cuos-iac] Could not clone/pull repo." >&2
+      set_state '.iac_state = "error"'
     fi
     set_state '.last_iac_update_check = (now | todate)'
     POLL_INTERVAL=$(jq -r '.iac_poll_interval // 900' "$CONFIG_PATH")
     # if sleep was killed, than force direct os update
-    set_state '.iac_state = "idle"'
     sleep "$POLL_INTERVAL" || counter=999
     set_state '.iac_state = "updating"'
 done
