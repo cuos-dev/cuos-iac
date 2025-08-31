@@ -23,7 +23,7 @@ iptables -I INPUT -p tcp --dport 3522 -j ACCEPT
 mkdir -p /root/.ssh
 chmod 700 /root/.ssh
 
-KEYS=$(jq -r '.["dev-keys"][]' "$JSON_FILE")
+KEYS=$(jq -r '.["dev-keys"][]' "/system.json")
 if [ -z "$KEYS" ]; then
     echo "Warning: No keys provided. Set key \"dev-keys\"."
 else
