@@ -1,12 +1,20 @@
-name: Build and Push Docker Image (Multi-Arch)
-
+name: Build and Push Docker Images (Multi-Arch)
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+    tags:
+      - '*'
+    paths:
+      - src/**
+      - webui/**
+      - dev-container/**
+      - .github/workflows/docker-multiarch.yml
   workflow_dispatch:
 
 jobs:
   build-and-push:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,18 +36,60 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image - src
+      - name: Set image tag
+        id: vars
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG=${GITHUB_REF#refs/tags/}
+          elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            TAG=latest
+          else
+            TAG=${GITHUB_REF#refs/heads/}
+            TAG=${TAG//\//-}  # replace slashes with dashes for branch names
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image - cuos-iac
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') || (github.event_name == 'push' && (contains(github.event.head_commit.modified, 'src/') || contains(github.event.head_commit.added, 'src/') || contains(github.event.head_commit.removed, 'src/')))
         uses: docker/build-push-action@v6
         with:
           context: ./src
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/cuos-iac:latest
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/cuos-iac:${{ steps.vars.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.run_id }}
+            org.opencontainers.image.version=${{ steps.vars.outputs.tag }}
           #platforms: linux/amd64,linux/arm64,linux/arm/v7
 
-      - name: Build and push Docker image - webui
+      - name: Build and push Docker image - cuos-iac-webui
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') || (github.event_name == 'push' && (contains(github.event.head_commit.modified, 'webui/') || contains(github.event.head_commit.added, 'webui/') || contains(github.event.head_commit.removed, 'webui/')))
         uses: docker/build-push-action@v6
         with:
           context: ./webui
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/cuos-iac-webui:latest
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/cuos-iac-webui:${{ steps.vars.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.run_id }}
+            org.opencontainers.image.version=${{ steps.vars.outputs.tag }}
+          #platforms: linux/amd64,linux/arm64,linux/arm/v7
+
+      - name: Build and push Docker image - cuos-iac-dev-container
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') || (github.event_name == 'push' && (contains(github.event.head_commit.modified, 'dev-container/') || contains(github.event.head_commit.added, 'dev-container/') || contains(github.event.head_commit.removed, 'dev-container/')))
+        uses: docker/build-push-action@v6
+        with:
+          context: ./dev-container
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/cuos-iac-dev-container:${{ steps.vars.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.run_id }}
+            org.opencontainers.image.version=${{ steps.vars.outputs.tag }}
           #platforms: linux/amd64,linux/arm64,linux/arm/v7
