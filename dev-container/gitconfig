@@ -1,0 +1,6 @@
+[color]
+	ui = auto
+[alias]
+	tree = log --oneline --decorate --all --graph
+[push]
+	default = simple

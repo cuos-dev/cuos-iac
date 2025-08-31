@@ -1,0 +1,39 @@
+#!/bin/bash
+
+trap 'echo "Broken pipe detected!"' PIPE
+
+SOCKET_PATH="/var/run/cuos.sock"
+
+cuos_api() {
+    local command="$1"
+    local json_data="$2"
+    if [[ ! -S $SOCKET_PATH ]]; then
+        echo "Socket does not exist: $SOCKET_PATH"
+        return 2
+    fi
+    if [[ "${json_data}" == "-" ]]; then
+        json_data="$(cat)"
+    fi
+
+    # open file descritor for socat. Input from pipe, Output to stdout
+    exec 3> >(socat - UNIX-CONNECT:$SOCKET_PATH)
+    local socat_pid="$!"
+
+    # Send a command
+    echo "${json_data:-"{}"}" | jq -c --arg command "$command" '.command = $command' >&3
+    # wait that socat exists
+    wait -f "${socat_pid}"
+    # close file descriptor and get return value of socat
+    local return_code="$?"
+    if [[ "${return_code}" != "0" ]]; then
+        echo "socat exited with return code ${return_code}."
+        return 1
+    fi
+
+    exec 3>&-
+
+    return 0
+}
+
+cuos_api "$@"
+exit "$?"
