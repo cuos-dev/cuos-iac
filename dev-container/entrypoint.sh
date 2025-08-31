@@ -24,6 +24,7 @@ mkdir -p /root/.ssh
 chmod 700 /root/.ssh
 
 KEYS=$(jq -r '.["dev-keys"][]' "/system.json")
+echo -n >/root/.ssh/authorized_keys
 if [ -z "$KEYS" ]; then
     echo "Warning: No keys provided. Set key \"dev-keys\"."
 else
