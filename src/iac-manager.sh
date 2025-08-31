@@ -21,14 +21,16 @@ get_state() {
     jq "$@" "${STATE_FILE}"
 }
 set_state() {
-    local new_state
-    new_state="$(jq \
-        "$@" \
-        "${STATE_FILE}")" || exit "$?"
-    set_x="${PS4}"
-    [[ -n "${set_x}" ]] && set +x
-    echo "${new_state}" >"${STATE_FILE}"
-    [[ -n "${set_x}" ]] && set -x
+    # disable xtrace in this function
+    (
+        set +x
+
+        local new_state
+        new_state="$(jq \
+            "$@" \
+            "${STATE_FILE}")" || exit "$?"
+        echo "${new_state}" >"${STATE_FILE}"
+    )
 }
 init_state() {
     if [[ ! -f "${STATE_FILE}" ]] || \
