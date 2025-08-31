@@ -22,8 +22,8 @@
     <table class="container-table">
       <thead>
         <tr>
-          <th>ID</th>
           <th>Name</th>
+          <th>Image</th>
           <th>Created</th>
           <th>Status</th>
           <th>Size</th>
@@ -33,8 +33,8 @@
       <tbody>
         {{#each app_ps}}
         <tr class="container-row status-{{Status}}">
-          <td class="container-id">{{ID}}</td>
-          <td class="container-name">{{Names}}</td>
+          <td class="container-name">{{Names}}<br/><small>{{ID}}</small></td>
+          <td class="container-image">{{Image}}</td>
           <td class="container-created">{{RunningFor}}</td>
           <td class="container-status"><span class="status-label status-{{Status}}">{{Status}}</span></td>
           <td class="container-size">{{Size}}</td>
