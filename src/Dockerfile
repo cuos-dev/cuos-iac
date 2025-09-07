@@ -6,6 +6,7 @@ VOLUME ["/volume"]
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV container=docker
+LABEL dev.cuos.iac="1"
 LABEL dev.cuos.app_command="\
     --device /dev/tty1 \
     --memory 512MB \

@@ -1,6 +1,9 @@
 #!/bin/bash
-set -uo pipefail
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 set -x
+set -uo pipefail
 
 trap 'echo "Broken pipe detected!"' PIPE
 
@@ -9,6 +12,8 @@ SOCKET_PATH="/var/run/cuos.sock"
 REPO_DIR="/volume/repo"
 REPO_DIR_SUBDIR=""
 STATE_FILE="/volume/state.json"
+
+DOCKERCOMPOSE="${SCRIPT_DIR}/docker-compose-host-paths.sh"
 
 set_error() {
     echo "Error: $*" >&2
@@ -193,7 +198,7 @@ run_docker_compose() {
     # resolve symlinks to get the absolute path
     compose_file="$(realpath "$compose_file")"
     echo "[cuos-iac] Running docker-compose from $compose_file..." >&2
-    if ! docker compose -f "$compose_file" config >/dev/null 2>&1; then
+    if ! "$DOCKERCOMPOSE" -f "$compose_file" config >/dev/null 2>&1; then
         echo "[cuos-iac] Invalid docker-compose file: $compose_file" >&2
         return 1
     fi
@@ -201,7 +206,7 @@ run_docker_compose() {
     echo "[cuos-iac] Starting services with docker-compose..." >&2
     export COMPOSE_PROJECT_NAME="iac"
 
-    docker compose -f "$compose_file" pull -q || {
+    "$DOCKERCOMPOSE" -f "$compose_file" pull -q || {
         echo "[cuos-iac] Failed to pull images with docker-compose." >&2
         return 1
     }
@@ -210,7 +215,7 @@ run_docker_compose() {
         return 1
     }
 
-    docker compose \
+    "$DOCKERCOMPOSE" \
       -f "$compose_file" \
       up -d \
       --remove-orphans \
@@ -225,7 +230,7 @@ run_docker_compose() {
 docker_compose_check_digests() {
   local compose_file="$1"
 
-  images=$(docker compose -f "$compose_file" config | yq -c '.services[]' -)
+  images=$("$DOCKERCOMPOSE" -f "$compose_file" config | yq -c '.services[]' -)
 
   while IFS= read -r image; do
     image_name=$(echo "${image}" | yq -r '.image')
