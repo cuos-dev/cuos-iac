@@ -9,12 +9,16 @@ import fs from 'fs/promises';
 import Handlebars from 'handlebars';
 import bcrypt from 'bcrypt';
 
+const locale = process.env.LOCALE || 'de-DE';
+const timeZone = process.env.TZ || 'Europe/Berlin';
+
 Handlebars.registerHelper('formatDate', function(dateStr) {
   if (!dateStr) return '';
+
   // Annahme: dateStr ist ISO-Format
   const d = new Date(dateStr);
   if (isNaN(d)) return dateStr;
-  return d.toLocaleString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '');
+  return d.toLocaleString(locale, { tz: timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '');
 });
 Handlebars.registerHelper('getColor', function(percent) {
   if (percent < 70) return '#00BCD4'; // Türkis
