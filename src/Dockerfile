@@ -1,6 +1,6 @@
 FROM debian:trixie-slim
 
-ENTRYPOINT ["/app/iac-manager.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 VOLUME ["/volume"]
 
@@ -34,4 +34,4 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 COPY update trigger /api/
-COPY iac-manager.sh /app/iac-manager.sh
+COPY *.sh /app/
