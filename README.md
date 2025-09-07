@@ -110,12 +110,21 @@ Add your SSH key(s) to system.json:
 
 ```json
 {
-    "dev-keys": ["ssh-rsa AAAA..."]
+    "dev-keys": [
+        "ssh-rsa AAAA..."
+    ]
 }
 ```
 
-Recommandation: Set environment variables for git with your ssh key:\\
-`environment="GIT_AUTHOR_NAME=Your Name",environment="GIT_AUTHOR_EMAIL=your-mail@example.com",environment="GIT_COMMITTER_NAME=Your Name",environment="GIT_COMMITTER_EMAIL=your-mail@example.com" ssh-rsa AAAAB...`
+Recommandation: Set environment variables for git with your ssh key:
+
+```json
+{
+    "dev-keys": [
+        "environment=\"GIT_AUTHOR_NAME=Your Name\",environment=\"GIT_AUTHOR_EMAIL=your-mail@example.com\",environment=\"GIT_COMMITTER_NAME=Your Name\",environment=\"GIT_COMMITTER_EMAIL=your-mail@example.com\" ssh-rsa AAAAB..."
+    ]
+}
+```
 
 Login with ssh:
 
