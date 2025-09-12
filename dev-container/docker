@@ -42,7 +42,6 @@ map_path_or_keep() {
   local in="$1"
   local in2 out
   in2="$(expand_tilde_minimal "$in")"
-  echo "HI HI HI"
 
   if [[ "$(LC_ALL=C type -t "$DOCKER_REAL")" != "function" ]] && \
       ! command -v "$HOST_MAP_BIN" >/dev/null 2>&1; then
