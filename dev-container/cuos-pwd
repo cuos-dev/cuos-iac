@@ -1,0 +1,3 @@
+#!/bin/bash
+
+cuos-root-dir "$(pwd)"

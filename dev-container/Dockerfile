@@ -8,7 +8,7 @@ COPY entrypoint.sh /
 COPY sshd_config_local.conf /etc/ssh/sshd_config.d/
 COPY vimrc.local /etc/vim/
 COPY gitconfig /etc/
-COPY cuos /usr/bin/
+COPY cuos cuos-* docker /usr/local/bin/
 
 ENV container=docker
 

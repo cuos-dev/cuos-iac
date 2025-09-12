@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Usage: ./resolve_host_path.sh /path/inside/container
+container_path="$(realpath "$1")"
+
+if [ -z "$container_path" ]; then
+  echo "Usage: $0 <path-inside-container>"
+  exit 1
+fi
+
+# Get list of all container IDs
+container_ids="$(curl -s --unix-socket /var/run/docker.sock http://localhost/containers/json | jq -r '.[].Id')"
+
+# Identify current container by matching root device
+my_container_id=""
+for id in $container_ids; do
+  merged_dir="$(curl -s --unix-socket /var/run/docker.sock "http://localhost/containers/${id}/json" | jq -r '.GraphDriver.Data.MergedDir')"
+  [ -z "$merged_dir" ] && continue
+  merged_dev=$(stat -c %d "$merged_dir" 2>/dev/null)
+  if [ "$merged_dev" = "$(stat -c %d /)" ]; then
+    my_container_id="$id"
+    break
+  fi
+done
+
+[ -z "$my_container_id" ] && {
+  echo "Could not identify current container."
+  exit 1
+}
+
+# Get mount points of the current container
+mounts="$(curl -s --unix-socket /var/run/docker.sock "http://localhost/containers/${my_container_id}/json" | jq -c '.Mounts[]')"
+
+# Find the mount that contains the container path
+for mount in $mounts; do
+  source=$(echo "$mount" | jq -r '.Source')
+  destination=$(echo "$mount" | jq -r '.Destination')
+
+  # Check if the container path starts with this mount point
+  case "$container_path" in
+    "$destination"/*|"$destination")
+      relative_path="${container_path#"$destination"}"
+      echo "$source$relative_path"
+      exit 0
+      ;;
+  esac
+done
+
+merged_dir="$(docker inspect -f '{{ .GraphDriver.Data.MergedDir }}' "$my_container_id")"
+
+echo "${merged_dir}${container_path}"
+

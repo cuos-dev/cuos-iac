@@ -1,0 +1,294 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+# --- Configuration ---
+# Path to the real docker binary (avoid recursion)
+DOCKER_REAL="${DOCKER_REAL:-/usr/bin/docker}"
+
+# Path mapper (container path -> host path); must read from STDOUT
+HOST_MAP_BIN="${HOST_MAP_BIN:-cuos-host-path}"
+
+# Set DEBUG=1 to see rewrites
+DEBUG="${DEBUG:-0}"
+
+# --- Helpers ---
+
+log_debug() {
+  if [ "$DEBUG" = "1" ]; then
+    printf '[docker-wrap] %s\n' "$*" >&2
+  fi
+}
+
+# detect if string looks like a filesystem path, not a named volume
+looks_like_path() {
+  case "$1" in
+    /*|./*|../*|~|~/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Minimal, safe tilde expansion: ~ and ~/ only (no ~user)
+expand_tilde_minimal() {
+  local p="$1"
+  case "$p" in
+    "~")   printf '%s' "${HOME:-$p}";;
+    "~/"*) printf '%s/%s' "${HOME:-~}" "${p#~/}";;
+    *)     printf '%s' "$p";;
+  esac
+}
+
+# Call cuos-host-path (after tilde expansion); keep original if mapping fails/empty
+map_path_or_keep() {
+  local in="$1"
+  local in2 out
+  in2="$(expand_tilde_minimal "$in")"
+  echo "HI HI HI"
+
+  if [[ "$(LC_ALL=C type -t "$DOCKER_REAL")" != "function" ]] && \
+      ! command -v "$HOST_MAP_BIN" >/dev/null 2>&1; then
+    log_debug "Mapper '$HOST_MAP_BIN' not found; keeping: $in2"
+    printf '%s' "$in2"
+    return 0
+  fi
+
+  if ! out="$("$HOST_MAP_BIN" "$in2" 2>/dev/null || true)"; then
+    out=""
+  fi
+  if [ -n "$out" ]; then
+    log_debug "Mapped: '$in' -> '$out'"
+    printf '%s' "$out"
+  else
+    log_debug "Mapping returned empty; keeping: $in2"
+    printf '%s' "$in2"
+  fi
+}
+
+# Rewrite a single -v/--volume spec: SRC:DEST[:OPTS]
+# Anonymous volume (":/dest") and named volume ("name:/dest") pass through.
+rewrite_volume_spec() {
+  local spec="$1"
+
+  # must contain at least one colon
+  if [[ "$spec" != *:* ]]; then
+    printf '%s' "$spec"
+    return 0
+  fi
+
+  local src="${spec%%:*}"      # up to first colon (may be empty)
+  local rest="${spec#"$src"}"
+  rest="${rest#:}"             # remove the colon
+
+  # Anonymous volume
+  if [ -z "$src" ]; then
+    printf '%s' "$spec"
+    return 0
+  fi
+
+  # Named volume?
+  if ! looks_like_path "$src"; then
+    printf '%s' "$spec"
+    return 0
+  fi
+
+  local mapped
+  mapped="$(map_path_or_keep "$src")"
+  printf '%s:%s' "$mapped" "$rest"
+}
+
+# Split --mount spec on commas, but respect single/double quotes
+split_mount_fields() {
+  local spec="$1"
+  local -a fields=()
+  local buf=""
+  local in_s=0 in_d=0
+  local i ch
+
+  for ((i=0; i<${#spec}; i++)); do
+    ch="${spec:i:1}"
+    if [ "$ch" = "'" ] && [ $in_d -eq 0 ]; then
+      in_s=$((1-in_s)); buf+="$ch"; continue
+    fi
+    if [ "$ch" = '"' ] && [ $in_s -eq 0 ]; then
+      in_d=$((1-in_d)); buf+="$ch"; continue
+    fi
+    if [ "$ch" = "," ] && [ $in_s -eq 0 ] && [ $in_d -eq 0 ]; then
+      fields+=("$buf"); buf=""
+    else
+      buf+="$ch"
+    fi
+  done
+  fields+=("$buf")
+  printf '%s\0' "${fields[@]}"
+}
+
+strip_outer_quotes() {
+  # echo unquoted + original quote char (if any) separated by \n
+  local v="$1"
+  if [[ "$v" == \"*\" && "$v" == *\" ]]; then
+    printf '%s\n%s' "${v:1:${#v}-2}" '"'
+  elif [[ "$v" == \'*\' && "$v" == *\' ]]; then
+    printf '%s\n%s' "${v:1:${#v}-2}" "'"
+  else
+    printf '%s\n' "$v"
+  fi
+}
+
+# Rewrite --mount spec when type=bind (src=/ source=/)
+rewrite_mount_spec() {
+  local spec="$1"
+
+  # Fast path: only operate on bind mounts
+  case "$spec" in
+    *type=bind*|*type\ *=\ *bind*) ;;
+    *) printf '%s' "$spec"; return 0 ;;
+  esac
+
+  # Split fields safely
+  mapfile -d '' -t fields < <(split_mount_fields "$spec")
+  local out_fields=()
+  local key val unq quote mapped
+  local modified=0
+
+  for kv in "${fields[@]}"; do
+    if [[ "$kv" =~ ^([[:space:]]*src|[[:space:]]*source)[[:space:]]*=(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      val="${BASH_REMATCH[2]}"
+
+      # preserve outer quotes
+      IFS=$'\n' read -r unq quote < <(strip_outer_quotes "$val")
+      # tilde-expand (safe) then map if looks like path
+      if looks_like_path "$unq"; then
+        mapped="$(map_path_or_keep "$unq")"
+        if [ -n "$quote" ]; then
+          out_fields+=("${key}=${quote}${mapped}${quote}")
+        else
+          out_fields+=("${key}=${mapped}")
+        fi
+        modified=1
+      else
+        out_fields+=("$kv")
+      fi
+    else
+      out_fields+=("$kv")
+    fi
+  done
+
+  # Only return modified spec for bind mounts (but keep other fields intact)
+  printf '%s' "$(IFS=,; echo "${out_fields[*]}")"
+}
+
+# Expand combined short options like -itv/... into -i -t -v<spec>
+# For non-`v` flags, we split to separate tokens (e.g., -p80:80 => "-p" "80:80")
+expand_short_cluster() {
+  local arg="$1"
+  local rest="${arg#-}"
+  local tokens=()
+  local i c
+
+  for ((i=0; i<${#rest}; i++)); do
+    c="${rest:i:1}"
+    if [ "$c" = "v" ]; then
+      local tail="${rest:i+1}"
+      if [ -n "$tail" ]; then
+        tokens+=("-v$tail")
+      else
+        tokens+=("-v")
+      fi
+      # The remainder is consumed by -v; stop splitting here
+      break
+    else
+      tokens+=("-$c")
+    fi
+  done
+  # If we stopped before end but not because of v, we may have leftover (rare); ignore.
+  printf '%s\0' "${tokens[@]}"
+}
+
+# --- Parse args and rewrite ---
+OUT_ARGS=()
+END_OF_OPTS=0
+
+while [ "$#" -gt 0 ]; do
+  arg="$1"
+  shift
+
+  if [ "$END_OF_OPTS" -eq 1 ]; then
+    OUT_ARGS+=("$arg")
+    continue
+  fi
+
+  case "$arg" in
+    --)
+      OUT_ARGS+=("--")
+      # pass through the rest unchanged
+      while [ "$#" -gt 0 ]; do OUT_ARGS+=("$1"); shift; done
+      END_OF_OPTS=1
+      ;;
+
+    # -v with separate value
+    -v)
+      if [ "$#" -eq 0 ]; then OUT_ARGS+=("-v"); break; fi
+      spec="$1"; shift
+      OUT_ARGS+=("-v" "$(rewrite_volume_spec "$spec")")
+      ;;
+
+    # -v=spec, -vspec (including absolute/relative/tilde)
+    -v=*|-v/*|-v./*|-v../*|-v~*|-v:*)
+      spec="${arg#-v=}"
+      spec="${spec#-v}"
+      OUT_ARGS+=("-v" "$(rewrite_volume_spec "$spec")")
+      ;;
+
+    # --volume with separate value
+    --volume)
+      if [ "$#" -eq 0 ]; then OUT_ARGS+=("--volume"); break; fi
+      spec="$1"; shift
+      OUT_ARGS+=("--volume" "$(rewrite_volume_spec "$spec")")
+      ;;
+
+    # --volume=spec
+    --volume=*)
+      spec="${arg#--volume=}"
+      OUT_ARGS+=("--volume=$(rewrite_volume_spec "$spec")")
+      ;;
+
+    # --mount with separate value
+    --mount)
+      if [ "$#" -eq 0 ]; then OUT_ARGS+=("--mount"); break; fi
+      mspec="$1"; shift
+      OUT_ARGS+=("--mount" "$(rewrite_mount_spec "$mspec")")
+      ;;
+
+    # --mount=spec
+    --mount=*)
+      mspec="${arg#--mount=}"
+      OUT_ARGS+=("--mount=$(rewrite_mount_spec "$mspec")")
+      ;;
+
+    # Combined short options: e.g., -itv/home:/mnt:ro
+    -[!-][!-]*)
+      mapfile -d '' -t expanded < <(expand_short_cluster "$arg")
+      # Prepend expanded tokens back to the input stream, then continue
+      set -- "${expanded[@]}" "$@"
+      ;;
+
+    *)
+      OUT_ARGS+=("$arg")
+      ;;
+  esac
+done
+
+# --- Exec real docker ---
+if [[ "$(LC_ALL=C type -t "$DOCKER_REAL")" != "function" && ! -x "$DOCKER_REAL" ]]; then
+  printf 'Error: DOCKER_REAL not executable or not found: %s\n' "$DOCKER_REAL" >&2
+  exit 127
+fi
+
+if [ "$DEBUG" = "1" ]; then
+  printf '[docker-wrap] Exec: %s' "$DOCKER_REAL" >&2
+  for a in "${OUT_ARGS[@]}"; do printf ' %q' "$a" >&2; done
+  printf '\n' >&2
+fi
+
+"$DOCKER_REAL" "${OUT_ARGS[@]}"
+exit "$?"

@@ -1,3 +1,19 @@
+" Ensure Vim's automatic defaults.vim is skipped later
+let g:skip_defaults_vim = 1
+
+" Manually load defaults.vim now, bypassing the skip guard
+if filereadable($VIMRUNTIME . '/defaults.vim')
+  if exists('g:skip_defaults_vim')
+    unlet g:skip_defaults_vim
+    let s:restore_skip = 1
+  endif
+  execute 'source ' . $VIMRUNTIME . '/defaults.vim'
+  if exists('s:restore_skip')
+    let g:skip_defaults_vim = 1
+    unlet s:restore_skip
+  endif
+endif
+
 set nocompatible
 source $VIMRUNTIME/vimrc_example.vim
 
