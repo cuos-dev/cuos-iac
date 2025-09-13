@@ -310,7 +310,7 @@ html, body {
   background: #fff3e0;
   border-left: 4px solid #FF9800;
 }
-.log-entry.info {
+.log-entry.notice {
   background: #e3f2fd;
   border-left: 4px solid #2196F3;
 }

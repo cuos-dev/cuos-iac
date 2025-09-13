@@ -8,6 +8,20 @@ if [ -z "$container_path" ]; then
   exit 1
 fi
 
+# exclusions:
+case "$1" in
+  "/root/.docker/config.json") echo "$1";exit;;
+  "/var/lib/docker.sock") echo "$1";exit;;
+  "/var/lib/cuos.sock") echo "$1";exit;;
+  "/etc/machine-id") echo "$1";exit;;
+  "/system.json") echo "$1";exit;;
+  "/dev") echo "$1";exit;;
+  "/data") echo "$1";exit;;
+  "/proc") echo "$1";exit;;
+  "/run/systemd/journal/socket") echo "$1";exit;;
+  "/var/log/journal") echo "$1";exit;;
+esac
+
 # Get list of all container IDs
 container_ids="$(curl -s --unix-socket /var/run/docker.sock http://localhost/containers/json | jq -r '.[].Id')"
 
@@ -29,7 +43,14 @@ done
 }
 
 # Get mount points of the current container
-mounts="$(curl -s --unix-socket /var/run/docker.sock "http://localhost/containers/${my_container_id}/json" | jq -c '.Mounts[]')"
+mounts="$(curl -s --unix-socket /var/run/docker.sock \
+    "http://localhost/containers/${my_container_id}/json" |
+  jq -c '
+    .Mounts
+    | map({Source: (.Source // .Mountpoint), Destination})
+    | sort_by(.Destination | length) | reverse
+    | .[]
+  ')"
 
 # Find the mount that contains the container path
 for mount in $mounts; do
