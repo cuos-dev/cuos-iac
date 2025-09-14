@@ -15,7 +15,7 @@ ENV container=docker
 RUN apt-get -y update &&\
 	DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
 	# Editors and Session \
-	vim nano git screen tmux \
+	vim nano git screen tmux less \
 	# System and Processes \
 	htop procps lsof strace sysstat iotop \
 	# Network \
