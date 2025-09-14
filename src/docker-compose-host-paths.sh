@@ -79,7 +79,12 @@ REWRITTEN="$(
       def walk(f):
         . as $in
         | if type == "object" then
-            reduce keys[] as $k (.; .[$k] = ($in[$k] | walk(f)))
+            with_entries(
+              if .key == "context"
+              then .
+              else (.value |= (.value | walk(f)))
+              end
+            )
           elif type == "array" then
             map(walk(f))
           else
