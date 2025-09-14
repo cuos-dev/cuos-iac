@@ -15,8 +15,7 @@ LABEL dev.cuos.app_command="\
     --volume /root/.docker/config.json:/root/.docker/config.json:ro \
     --volume /var/run/cuos.sock:/var/run/cuos.sock \
     --volume /system.json:/system.json:ro \
-    --volume /usr/local/share/ca-certificates/custom:/usr/local/share/ca-certificates/custom:ro \
-    --tmpfs /etc/ssl/certs:rw,noexec,nosuid,size=16m"
+    --volume /usr/local/share/ca-certificates/custom:/usr/local/share/ca-certificates/custom:ro"
 # --user user:group ???
 
 WORKDIR /app
