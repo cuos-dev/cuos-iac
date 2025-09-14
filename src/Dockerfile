@@ -2,7 +2,7 @@ FROM debian:trixie-slim
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 
-VOLUME ["/volume"]
+VOLUME ["/volume", "/root/.docker"]
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV container=docker
