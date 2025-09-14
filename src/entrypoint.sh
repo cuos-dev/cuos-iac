@@ -207,7 +207,7 @@ run_docker_compose_build() {
     export COMPOSE_PROJECT_NAME="iac"
 
     "$DOCKERCOMPOSE" -f "$compose_file" build --pull || {
-        echo "[cuos-iac] Failed to pull images with docker-compose." >&2
+        echo "[cuos-iac] Failed to build images with docker-compose." >&2
         return 1
     }
 }
