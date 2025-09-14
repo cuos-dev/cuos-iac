@@ -80,9 +80,10 @@ REWRITTEN="$(
         . as $in
         | if type == "object" then
             with_entries(
-              if .key == "context"
-              then .
-              else (.value |= (.value | walk(f)))
+              if .key == "context" then
+                .
+              else
+                (.value |= walk(f))
               end
             )
           elif type == "array" then
@@ -91,9 +92,10 @@ REWRITTEN="$(
             f
           end;
       walk(
-        if type == "string"
-        then sub("^" + (env.VOLUME_MNT); env.HOST_REPO_PATH)
-        else .
+        if type == "string" then
+          sub("^" + (env.VOLUME_MNT); env.HOST_REPO_PATH)
+        else
+          .
         end
       )
     '
