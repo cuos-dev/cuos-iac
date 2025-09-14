@@ -189,6 +189,29 @@ apply_system_json_if_changed() {
     return 0
 }
 
+run_docker_compose_build() {
+    local compose_file="${REPO_DIR}${REPO_DIR_SUBDIR}/docker-compose.yml"
+    if [ ! -f "$compose_file" ]; then
+        echo "[cuos-iac] No docker-compose.yml found in repo." >&2
+        return 1
+    fi
+    # resolve symlinks to get the absolute path
+    compose_file="$(realpath "$compose_file")"
+    echo "[cuos-iac] Running docker-compose from $compose_file..." >&2
+    if ! "$DOCKERCOMPOSE" -f "$compose_file" config >/dev/null 2>&1; then
+        echo "[cuos-iac] Invalid docker-compose file: $compose_file" >&2
+        return 1
+    fi
+    # Run docker-compose with the resolved absolute path
+    echo "[cuos-iac] Starting services with docker-compose..." >&2
+    export COMPOSE_PROJECT_NAME="iac"
+
+    "$DOCKERCOMPOSE" -f "$compose_file" build --pull || {
+        echo "[cuos-iac] Failed to pull images with docker-compose." >&2
+        return 1
+    }
+}
+
 run_docker_compose() {
     local compose_file="${REPO_DIR}${REPO_DIR_SUBDIR}/docker-compose.yml"
     if [ ! -f "$compose_file" ]; then
@@ -277,6 +300,8 @@ while true; do
             system_json_changed="$?"
             set_state '.last_iac_update = (now | todate)'
             counter=0
+
+            run_docker_compose_build
         fi
 	if [[ "${system_json_changed}" == "0" ]]; then
             run_docker_compose --force-recreate
