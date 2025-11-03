@@ -1,11 +1,13 @@
+<button onClick="location.reload()" style="float: right;">refresh</button>
 <h1>CuOS Fleet</h1>
 <table>
   <thead>
     <tr>
       <th>Hostname</th>
-      <th>UUID</th>
       <th>Connection</th>
       <th>Status</th>
+      <th>CuOS Version</th>
+      <th>Last Update</th>
       <th>CPU%</th>
       <th>RAM%</th>
       <th>Disk%</th>
@@ -17,10 +19,11 @@
     {{#if clients.length}}
       {{#each clients}}
         <tr>
-          <td>{{hostname}}</td>
-          <td><small>{{id}}</small></td>
-          <td class="status-{{status}}">{{status}}</td>
-          <td class="status-{{state?.status}}">{{state?.status}}</td>
+          <td title="{{id}}">{{hostname}}</td>
+          <td class="status-{{connection}}">{{connection}}</td>
+          <td class="status-{{metrics.state.state}}">{{metrics.state.state}}</td>
+          <td class="version">{{metrics.state.version}}</td>
+          <td class="last_update">{{formatDate metrics.state.last_update_date}}</td>
           <td class="metrics-cell">{{metrics.resources.cpu_usage}}{{#if metrics.resources.cpu_usage}}%{{/if}}</td>
           <td class="metrics-cell">{{metrics.resources.ram_percent}}{{#if metrics.resources.ram_percent}}%{{/if}}</td>
           <td class="metrics-cell">{{metrics.resources.disk_percent}}{{#if metrics.resources.disk_percent}}%{{/if}}</td>

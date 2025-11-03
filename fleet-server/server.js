@@ -97,8 +97,8 @@ app.get('/ui', requireAuth, (req, res) => {
   const list = Object.values(clients).map(c => ({
     id: c.id,
     hostname: c.hostname || '-',
-    status: c.status,
-    metrics: c.metrics || { resources: {} }
+    connection: c.status,
+    metrics: c.metrics || { resources: {}, state: {} }
   }));
   res.render('clients', { clients: list });
 });
