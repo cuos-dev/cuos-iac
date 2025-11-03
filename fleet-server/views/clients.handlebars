@@ -1,0 +1,43 @@
+<h1>CuOS Fleet</h1>
+<table>
+  <thead>
+    <tr>
+      <th>Hostname</th>
+      <th>UUID</th>
+      <th>Connection</th>
+      <th>Status</th>
+      <th>CPU%</th>
+      <th>RAM%</th>
+      <th>Disk%</th>
+      <th>Last Seen</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#if clients.length}}
+      {{#each clients}}
+        <tr>
+          <td>{{hostname}}</td>
+          <td><small>{{id}}</small></td>
+          <td class="status-{{status}}">{{status}}</td>
+          <td class="status-{{state?.status}}">{{state?.status}}</td>
+          <td class="metrics-cell">{{metrics.resources.cpu_usage}}{{#if metrics.resources.cpu_usage}}%{{/if}}</td>
+          <td class="metrics-cell">{{metrics.resources.ram_percent}}{{#if metrics.resources.ram_percent}}%{{/if}}</td>
+          <td class="metrics-cell">{{metrics.resources.disk_percent}}{{#if metrics.resources.disk_percent}}%{{/if}}</td>
+          <td>{{formatDate metrics.collected_at}}</td>
+          <td>
+            <form class="inline" method="post" action="./action" onsubmit="return confirm('Trigger update for {{hostname}}?');">
+              <input type="hidden" name="id" value="{{id}}"/>
+              <input type="hidden" name="action" value="update"/>
+              <button type="submit">Update</button>
+            </form>
+            <a href="http://{{hostname}}:8030/" target="_blank">Visit</a>
+          </td>
+        </tr>
+      {{/each}}
+    {{else}}
+      <tr><td colspan="8">No clients</td></tr>
+    {{/if}}
+  </tbody>
+  <meta http-equiv="refresh" content="30">
+</table>

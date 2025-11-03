@@ -1,0 +1,14 @@
+{
+  "name": "cuos-fleet-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fleet management agent for cuos-iac host",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

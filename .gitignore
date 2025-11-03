@@ -1,3 +1,5 @@
 .*.swp
 .*.un~
 node_modules/
+fleet-agent/local-test.state_fleet_uuid
+fleet-server/data/

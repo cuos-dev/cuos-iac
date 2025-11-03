@@ -1,0 +1,19 @@
+{
+	"hostname": "test-1234.example.com",
+	"update_registry": "ghcr.io/cuos-dev/",
+	"os_image": "cuos-system",
+	"os_image_version": "latest",
+	"os_image_digest": "",
+	"lxc_image": "cuos-system-lxc",
+	"lxc_image_version": "latest",
+	"lxc_image_digest": "",
+	"updater_image": "cuos-updater",
+	"updater_image_version": "latest",
+	"updater_image_digest": "",
+	"init_image": "cuos-iac",
+	"init_image_version": "latest",
+	"init_image_digest": "",
+	"iac_repo_url": "https://github.com/cuos-dev/iac-hello-world-system.git",
+	"iac_repo_branch": "latest",
+    "fleet_tags": ["test"]
+}
