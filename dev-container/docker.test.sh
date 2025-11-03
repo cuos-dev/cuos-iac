@@ -25,7 +25,6 @@ export DEBUG="${DEBUG:-0}"           # set 1 for wrapper debug logs
 # Behavior: takes container path ($1), resolves like realpath, and prints a host path.
 # We prefix with /HOST to make assertions straightforward.
 cuos_host_path() {
-echo "HALLO" >&2
   set -euo pipefail
   local p="${1:-}"
   # Resolve path similarly to real cuos-host-path (which uses realpath)
@@ -37,7 +36,6 @@ echo "HALLO" >&2
     p="$PWD/${p#./}"
   fi
   printf '/HOST%s' "$p"
-  printf '/HOST%s' "$p" >&2
 }
 export -f cuos_host_path
 
