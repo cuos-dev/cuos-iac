@@ -152,11 +152,12 @@ app.get('/', async (req, res) => {
   const iac_repo_name = (config['iac_repo_url'] || '').replace(/^https?:\/\/.+\//, '').replace(/^git@.+:/, '').replace(/\.git$/, '');
   const iac_repo_url = (config['iac_repo_url'] || '').replace(/^(https?:\/\/)[^/]+@/, '$1').replace(/^git@/, 'https:\/\/').replace(/\.git$/, '');
   const iac_repo_branch = config['iac_repo_branch'] || 'main';
+  const iac_poll_interval = config['iac_poll_interval'] || 21600;
 
   resources.ram_percent = Math.round((resources.mem_used_mb / resources.mem_total_mb) * 100);
   resources.disk_percent = Math.round((resources.disk_used_mb / resources.disk_total_mb) * 100);
 
-  res.render('home', { state, resources, app_ps, app_state, hostname: req.hostname, iac_repo_name, iac_repo_url, iac_repo_branch, last_10_logs });
+  res.render('home', { state, resources, app_ps, app_state, hostname: req.hostname, iac_repo_name, iac_repo_url, iac_repo_branch, last_10_logs, iac_poll_interval });
 });
 
 app.get('/config', async (req, res) => {

@@ -1,6 +1,6 @@
 // Timer-Animation für SVG-Kreis
 document.addEventListener('DOMContentLoaded', function() {
-  const duration = 15 * 60; // 15 Minuten
+  const duration = document.querySelector('.timer-svg').dataset.iacPollInterval || 21600; // 6h
   // Hole das letzte Update aus einem Data-Attribut des SVG oder eines versteckten Elements
   const lastUpdateStr = document.querySelector('.timer-svg').dataset.lastUpdate;
   const iacStateStr = document.querySelector('.timer-svg').dataset.iacState;
