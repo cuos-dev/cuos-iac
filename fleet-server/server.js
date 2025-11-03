@@ -98,6 +98,8 @@ app.get('/ui', requireAuth, (req, res) => {
     id: c.id,
     hostname: c.hostname || '-',
     connection: c.status,
+    state: (c.metrics?.app_state?.iac_state !== "idle" ? c.metrics?.app_state?.iac_state : c.metrics?.state?.state),
+    last_update: c.metrics?.app_state?.last_iac_update ?? c.metrics?.state?.last_update_date,
     metrics: c.metrics || { resources: {}, state: {} }
   }));
   res.render('clients', { clients: list });
@@ -194,10 +196,10 @@ wss.on('connection', (ws) => {
         saveClients(clients);
       }
     } else if (msg.type === 'metrics') {
-      const { uuid, state, resources } = msg;
+      const { uuid, state, resources, app_state } = msg;
       if (uuid && clients[uuid]) {
         clients[uuid].last_seen = new Date().toISOString();
-        clients[uuid].metrics = { state, resources, collected_at: new Date().toISOString() };
+        clients[uuid].metrics = { state, resources, app_state, collected_at: new Date().toISOString() };
       }
     }
   });
