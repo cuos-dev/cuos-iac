@@ -2,10 +2,10 @@ FROM node:24-alpine
 
 WORKDIR /app
 EXPOSE 3000
+CMD ["node", "app.js"]
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --omit=dev || npm install --omit=dev
 
 COPY . .
 
-CMD ["node", "app.js"]
