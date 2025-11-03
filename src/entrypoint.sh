@@ -325,7 +325,7 @@ while true; do
       set_state '.iac_state = "error"'
     fi
     set_state '.last_iac_update_check = (now | todate)'
-    POLL_INTERVAL=$(jq -r '.iac_poll_interval // 900' "$CONFIG_PATH")
+    POLL_INTERVAL=$(jq -r '.iac_poll_interval // 21600' "$CONFIG_PATH")
     # if sleep was killed, than force direct os update
     sleep "$POLL_INTERVAL" || counter=999
     set_state '.iac_state = "updating"'
