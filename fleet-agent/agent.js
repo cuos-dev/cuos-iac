@@ -153,8 +153,10 @@ async function collectAndSendMetrics() {
   systemConfig = loadSystemConfig();
   let stateData = {};
   let resourcesData = {};
+  let appStateData = {};
   try { stateData = await cuosApi('state'); } catch {}
   try { resourcesData = await cuosApi('resources'); } catch {}
+  try { appStateData = await cuosApi('app', {"app_command": "state"}); } catch {}
   // Derived percentages
   if (resourcesData.mem_used_mb && resourcesData.mem_total_mb) {
     resourcesData.ram_percent = Math.round((resourcesData.mem_used_mb / resourcesData.mem_total_mb) * 100);
@@ -191,7 +193,8 @@ async function collectAndSendMetrics() {
       ntp_service_active: resourcesData.ntp_service_active,
       ntp_synchronizede: resourcesData.ntp_synchronizede,
       routes: resourcesData.routes
-    }
+    },
+    app_state: appStateData
   };
   try {
     ws.send(JSON.stringify(payload));
