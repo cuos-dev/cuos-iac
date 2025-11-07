@@ -92,7 +92,7 @@ app.get('/api/clients/:id/direct', requireAuth, (req, res) => {
 });
 
 // Simple Web UI
-app.get('/', requireAuth, (req, res) => res.redirect('/ui'));
+app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
 app.get('/ui', requireAuth, (req, res) => {
   const list = Object.values(clients).map(c => ({
     id: c.id,
