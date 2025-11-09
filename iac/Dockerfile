@@ -28,9 +28,9 @@ RUN apt-get update && \
         jq \
         yq \
         socat \
-        ssh-keygen \
         wget \
         psmisc \
+        openssh-client \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
