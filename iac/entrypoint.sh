@@ -12,7 +12,7 @@ SOCKET_PATH="/var/run/cuos.sock"
 REPO_DIR="/volume/repo"
 REPO_DIR_SUBDIR=""
 STATE_FILE="/volume/state.json"
-SIGNING_KEYS_FILE="/volume/state.json"
+SIGNING_KEYS_FILE="/volume/signing_keys"
 
 export SYSTEM_CONFIG_PATH="${SYSTEM_CONFIG_PATH:-"/system.json"}"
 export DOCKER_CONTEXT=default
