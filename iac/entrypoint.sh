@@ -15,6 +15,7 @@ STATE_FILE="/volume/state.json"
 SIGNING_KEYS_FILE="/volume/state.json"
 
 export SYSTEM_CONFIG_PATH="${SYSTEM_CONFIG_PATH:-"/system.json"}"
+export DOCKER_CONTEXT=default
 
 DOCKERCOMPOSE="${SCRIPT_DIR}/docker-compose-host-paths.sh"
 MERGECONFIGS="${SCRIPT_DIR}/merge-configs.sh"
