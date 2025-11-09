@@ -17,6 +17,7 @@ SIGNING_KEYS_FILE="/volume/state.json"
 export SYSTEM_CONFIG_PATH="${SYSTEM_CONFIG_PATH:-"/system.json"}"
 
 DOCKERCOMPOSE="${SCRIPT_DIR}/docker-compose-host-paths.sh"
+MERGECONFIGS="${SCRIPT_DIR}/merge-configs.sh"
 
 set_error() {
     echo "Error: $*" >&2
@@ -192,7 +193,7 @@ apply_system_json_if_changed() {
         return 1
     fi
     local merged_config
-    merged_config="$(merge_configs "${repo_system_json}")" || return 1
+    merged_config="$("${MERGECONFIGS}" "${repo_system_json}")" || return 1
 
     local need_update_ca_certs=0
     if echo "${merged_config}" | are_json_files_different "-" "${CONFIG_PATH}" custom_ca_certs; then
