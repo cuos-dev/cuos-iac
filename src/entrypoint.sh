@@ -12,6 +12,9 @@ SOCKET_PATH="/var/run/cuos.sock"
 REPO_DIR="/volume/repo"
 REPO_DIR_SUBDIR=""
 STATE_FILE="/volume/state.json"
+SIGNING_KEYS_FILE="/volume/state.json"
+
+export SYSTEM_CONFIG_PATH="${SYSTEM_CONFIG_PATH:-"/system.json"}"
 
 DOCKERCOMPOSE="${SCRIPT_DIR}/docker-compose-host-paths.sh"
 
@@ -20,6 +23,10 @@ set_error() {
     set_state \
         --arg error "$1" \
         '.iac_error = $error | .iac_error_date = (now | todate)'
+}
+
+report() {
+    echo "[cuos-iac] $*" >&2
 }
 
 get_state() {
@@ -48,7 +55,7 @@ init_state() {
 
 do-update-ca-certificates() {
     if [ -d "/etc/ssl/certs" ]; then
-        echo "[cuos-iac] Updating CA certificates..." >&2
+        echo "Updating CA certificates..."
         update-ca-certificates --fresh
     fi
 }
@@ -64,7 +71,7 @@ clone_or_pull_repo() {
         else
             git clone "$repo_url" "$REPO_DIR" || return 1
         fi
-        echo "[cuos-iac] Cloned repo from $repo_url" >&2
+        report "Cloned repo from $repo_url"
         return 0
     }
     local repo_url
@@ -72,7 +79,7 @@ clone_or_pull_repo() {
     local repo_branch
     repo_branch="$(jq -r '.iac_repo_branch // empty' "$CONFIG_PATH")"
     if [ -z "$repo_url" ]; then
-        echo "[cuos-iac] No repo URL provided." >&2
+        report "Error: No repo URL provided."
         return 1
     fi
     if [ -d "$REPO_DIR/.git" ]; then
@@ -80,7 +87,7 @@ clone_or_pull_repo() {
         local current_url
         current_url=$(git -C "$REPO_DIR" config --get remote.origin.url)
         if [ "$current_url" != "$repo_url" ]; then
-            echo "[cuos-iac] Repo URL changed, re-cloning..." >&2
+            report "Repo URL changed, re-cloning..."
             git_clone "$repo_url" "$repo_branch" || return 1
         fi
         # check if repo is up to date
@@ -91,16 +98,31 @@ clone_or_pull_repo() {
         git -C "$REPO_DIR" pull >/dev/null || git_clone "$repo_url" "$repo_branch" || return 1
         commit=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")
         if [ "$commit" == "$last_commit" ]; then
-            echo "[cuos-iac] No changes detected: $commit" >&2
+            echo "No changes detected: $commit"
             # no updates
             return 3
         fi
-        echo "[cuos-iac] Detected new commit: $commit" >&2
+        report "Info: Detected new commit: $commit"
         return 0
     else
         git_clone "$repo_url" "$repo_branch" || return 1
         return 0
     fi
+}
+
+verify_commit() {
+    local signing_keys
+    signing_keys="$(jq -r '.iac_repo_signing_keys[]? // empty' "$CONFIG_PATH")"
+
+    if [[ -z "${signing_keys}" ]]; then
+        return 0
+    fi
+
+    echo "${signing_keys}" >"${SIGNING_KEYS_FILE}"
+    git -C "$REPO_DIR" config gpg.ssh.allowedSignersFile "${SIGNING_KEYS_FILE}"
+
+    git -C "$REPO_DIR" verify-commit HEAD
+    return "$?"
 }
 
 cuos_api() {
@@ -137,7 +159,7 @@ cuos_api() {
 hash_file() {
     file="$1"
     jsonkey=".${2:-""}"
-    if [[ ! -f "$file" ]]; then return 1; fi
+    if [[ "$file" != "-" && ! -f "$file" ]]; then return 1; fi
     jq "${jsonkey}" "$file" | sha256sum | awk '{print $1}'
     return "$?"
 }
@@ -149,12 +171,12 @@ are_json_files_different() {
 
     local hash_file1
     if ! hash_file1=$(hash_file "${file1}" "${jsonkey}"); then
-        echo "[cuos-iac] Invalid JSON file $file1." >&2
+        report "Error: Invalid JSON file $file1."
         return 2
     fi
     local hash_file2
     if ! hash_file2=$(hash_file "${file2}" "${jsonkey}"); then
-        echo "[cuos-iac] Invalid JSON file $file2." >&2
+        report "Error: Invalid JSON file $file2."
         return 2
     fi
 
@@ -169,14 +191,22 @@ apply_system_json_if_changed() {
     if [ ! -f "$repo_system_json" ]; then
         return 1
     fi
+    local merged_config
+    merged_config="$(merge_configs "${repo_system_json}")" || return 1
+
     local need_update_ca_certs=0
-    if are_json_files_different "${repo_system_json}" "${CONFIG_PATH}" custom_ca_certs; then
+    if echo "${merged_config}" | are_json_files_different "-" "${CONFIG_PATH}" custom_ca_certs; then
         need_update_ca_certs=1
     fi
 
-    if are_json_files_different "${repo_system_json}" "${CONFIG_PATH}"; then
-        echo "[cuos-iac] Applying new system.json via socket..." >&2
-        jq '{"config": .}' "$repo_system_json" | cuos_api "update" "-"
+    if echo "${merged_config}" | are_json_files_different "-" "${CONFIG_PATH}"; then
+        if [[ "${SYSTEM_TYPE}" == "cuos" ]]; then
+            report "Info: Applying new system.json via socket..."
+            echo "${merged_config}" | jq '{"config": .}' | cuos_api "update" "-"
+        else # assuming local type
+            report "Info: Applying new system.json directly..."
+            echo "${merged_config}" | jq '{"config": .}' >"${CONFIG_PATH}"
+        fi
     else
         # no changes
         return 3
@@ -192,22 +222,22 @@ apply_system_json_if_changed() {
 run_docker_compose_build() {
     local compose_file="${REPO_DIR}${REPO_DIR_SUBDIR}/docker-compose.yml"
     if [ ! -f "$compose_file" ]; then
-        echo "[cuos-iac] No docker-compose.yml found in repo." >&2
+        report "Error: No docker-compose.yml found in repo."
         return 1
     fi
     # resolve symlinks to get the absolute path
     compose_file="$(realpath "$compose_file")"
-    echo "[cuos-iac] Running docker-compose from $compose_file..." >&2
+    echo "Running docker-compose from $compose_file..."
     if ! "$DOCKERCOMPOSE" -f "$compose_file" config >/dev/null 2>&1; then
-        echo "[cuos-iac] Invalid docker-compose file: $compose_file" >&2
+        report "Error: Invalid docker-compose file: $compose_file"
         return 1
     fi
     # Run docker-compose with the resolved absolute path
-    echo "[cuos-iac] Starting services with docker-compose..." >&2
-    export COMPOSE_PROJECT_NAME="iac"
+    echo "Starting services with docker-compose..."
+    export COMPOSE_PROJECT_NAME="${IAC_COMPOSE_PROJECT_NAME:-"iac"}"
 
     "$DOCKERCOMPOSE" -f "$compose_file" build --pull || {
-        echo "[cuos-iac] Failed to build images with docker-compose." >&2
+        report "Error: Failed to build images with docker-compose."
         return 1
     }
 }
@@ -215,26 +245,26 @@ run_docker_compose_build() {
 run_docker_compose() {
     local compose_file="${REPO_DIR}${REPO_DIR_SUBDIR}/docker-compose.yml"
     if [ ! -f "$compose_file" ]; then
-        echo "[cuos-iac] No docker-compose.yml found in repo." >&2
+        report "Error: No docker-compose.yml found in repo."
         return 1
     fi
     # resolve symlinks to get the absolute path
     compose_file="$(realpath "$compose_file")"
-    echo "[cuos-iac] Running docker-compose from $compose_file..." >&2
+    echo "Running docker-compose from $compose_file..."
     if ! "$DOCKERCOMPOSE" -f "$compose_file" config >/dev/null 2>&1; then
-        echo "[cuos-iac] Invalid docker-compose file: $compose_file" >&2
+        report "Error: Invalid docker-compose file: $compose_file"
         return 1
     fi
     # Run docker-compose with the resolved absolute path
-    echo "[cuos-iac] Starting services with docker-compose..." >&2
-    export COMPOSE_PROJECT_NAME="iac"
+    echo "Starting/Updating Docker Compose services."
+    export COMPOSE_PROJECT_NAME="${IAC_COMPOSE_PROJECT_NAME:-"iac"}"
 
     "$DOCKERCOMPOSE" -f "$compose_file" pull -q || {
-        echo "[cuos-iac] Failed to pull images with docker-compose." >&2
+        report "Error: Failed to pull images with docker-compose."
         return 1
     }
     docker_compose_check_digests "$compose_file" || {
-        echo "[cuos-iac] Image digest check failed." >&2
+        report "Error: Image digest check failed."
         return 1
     }
 
@@ -248,6 +278,7 @@ run_docker_compose() {
     docker image prune -f || true
     docker system prune -f --volumes || true
 
+    report "Started/Updated Docker Compose services."
 }
 
 docker_compose_check_digests() {
@@ -257,7 +288,7 @@ docker_compose_check_digests() {
 
   while IFS= read -r image; do
     image_name=$(echo "${image}" | yq -r '.image')
-    expected_digest=$(echo "${image}" | jq -r '.digest // empty')
+    expected_digest=$(echo "${image}" | jq -r '."x-digest" // empty')
     actual_digest=$(docker inspect --format='{{index .RepoDigests 0}}' "${image_name}" | cut -d'@' -f2)
 
     if [[ "$expected_digest" == "null" || -z "$expected_digest" ]]; then
@@ -279,14 +310,19 @@ do-update-ca-certificates
 counter=0
 while true; do
     if [ ! -f "$CONFIG_PATH" ]; then
-        echo "[cuos-iac] $CONFIG_PATH not found, waiting..." >&2
+        report "Error: $CONFIG_PATH not found, waiting..." >&2
         sleep 10
-        continue
+	exit 1
     fi
     clone_or_pull_repo
     state="$?"
+    if ! verify_commit; then
+      report "Error: Could not verify last commit. Skip applying changes." >&2
+      set_state '.iac_state = "verification-failed"'
+
     # repo is there:
-    if [[ "${state}" != "1" ]]; then
+    elif [[ "${state}" != "1" ]]; then
+
         REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")"
         if [ -n "$REPO_DIR_SUBDIR" ]; then
             REPO_DIR_SUBDIR="/$REPO_DIR_SUBDIR"
@@ -311,17 +347,18 @@ while true; do
 
         # poll os update, only needed if digest is empty
         OS_DIGEST="$(jq -r '.os_image_digest // empty' "${CONFIG_PATH}")"
-        if [[ "${OS_DIGEST}" == "" ]]; then
+        if [[ "${OS_DIGEST}" == "" && "${SYSTEM_TYPE}" == "cuos" ]]; then
             counter="$((counter + 1))"
 	    # every 2h:
             if [[ "${counter}" -ge 8 ]]; then
                 cuos_api update
                 counter=0
             fi
+# TODO: Self update
         fi
         set_state '.iac_state = "idle"'
     else
-      echo "[cuos-iac] Could not clone/pull repo." >&2
+      report "Error: Could not clone/pull repo." >&2
       set_state '.iac_state = "error"'
     fi
     set_state '.last_iac_update_check = (now | todate)'
