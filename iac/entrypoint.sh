@@ -68,9 +68,9 @@ clone_or_pull_repo() {
         local repo_url="$1"
         local repo_branch="${2:-""}"
         if [ -n "$repo_branch" ]; then
-            git clone --branch "$repo_branch" "$repo_url" "$REPO_DIR" || return 1
+            git clone --recurse-submodules --branch "$repo_branch" "$repo_url" "$REPO_DIR" || return 1
         else
-            git clone "$repo_url" "$REPO_DIR" || return 1
+            git clone --recurse-submodules "$repo_url" "$REPO_DIR" || return 1
         fi
         report "Cloned repo from $repo_url"
         return 0
@@ -97,6 +97,9 @@ clone_or_pull_repo() {
             git -C "$REPO_DIR" checkout "$repo_branch" ||  git_clone "$repo_url" "$repo_branch" || return 1
         fi
         git -C "$REPO_DIR" pull >/dev/null || git_clone "$repo_url" "$repo_branch" || return 1
+        git -C "$REPO_DIR" submodule update --init --recursive || true
+        git -C "$REPO_DIR" submodule foreach --recursive 'git fetch --all' || true
+        git -C "$REPO_DIR" submodule update --init --recursive || true
         commit=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")
         if [ "$commit" == "$last_commit" ]; then
             echo "No changes detected: $commit"
