@@ -117,7 +117,7 @@ clone_or_pull_repo() {
 
 verify_commit() {
     local signing_keys
-    signing_keys="$(jq -r '.iac_repo_signing_keys[]? // empty' "$CONFIG_PATH")"
+    signing_keys="$(jq -r '(.iac_repo_signing_keys // []) | to_entries[] | "\(.key) \(.value)"' "$CONFIG_PATH")"
 
     if [[ -z "${signing_keys}" ]]; then
         return 0
