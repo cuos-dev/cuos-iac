@@ -28,6 +28,7 @@ RUN apt-get update && \
         jq \
         yq \
         socat \
+        ssh-keygen \
         wget \
         psmisc \
         ca-certificates \
