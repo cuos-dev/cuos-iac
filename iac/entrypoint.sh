@@ -360,6 +360,7 @@ while true; do
         cuos_api update
         counter=0
       fi
+# TODO: Self update
     fi
     set_state '.iac_state = "idle"'
   else
