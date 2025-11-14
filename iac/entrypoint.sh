@@ -98,7 +98,7 @@ clone_or_pull_repo() {
       git -C "$REPO_DIR" checkout "$repo_branch" ||  git_clone "$repo_url" "$repo_branch" || return 1
     fi
     git -C "$REPO_DIR" pull >/dev/null || git_clone "$repo_url" "$repo_branch" || return 1
-    git -C "$REPO_URL" submodule sync --recursive || true
+    git -C "$REPO_DIR" submodule sync --recursive || true
     git -C "$REPO_DIR" submodule update --init --recursive || true
     git -C "$REPO_DIR" submodule foreach --recursive 'git fetch --all' || true
     git -C "$REPO_DIR" submodule update --init --recursive || true
