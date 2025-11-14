@@ -3,6 +3,7 @@
 INPUT="$(cat)"
 
 COMMAND="$(jq -r '.app_command // empty' <<< "${INPUT}")"
+COMMAND="${COMMAND:-"${1:-}"}"
 
 if [[ "${COMMAND}" = "" || "${COMMAND}" = "help" || "${COMMAND}" = "--help" ]]; then
   cat <<EOF

@@ -34,5 +34,5 @@ RUN apt-get update && \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY update trigger /api/
+COPY api/* /api/
 COPY *.sh /app/

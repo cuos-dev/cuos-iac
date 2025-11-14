@@ -14,6 +14,8 @@ ENV container=docker
 
 RUN apt-get -y update &&\
 	DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+	# General \
+	locales \
 	# Editors and Session \
 	vim nano git screen tmux less \
 	# System and Processes \
@@ -33,5 +35,7 @@ RUN apt-get -y update &&\
 	gnupg2 cron pandoc \
 	# Servers \
 	openssh-server \
-	&& rm -rf /var/lib/apt/lists/*
-
+	&& rm -rf /var/lib/apt/lists/* \
+	&& rm -f /etc/ssh/ssh_host_* \
+	&& echo "en_US.UTF-8 UTF-8\nen_GB.UTF-8 UTF-8\nde_DE.UTF-8 UTF-8\nfr_FR.UTF-8 UTF-8\nes_ES.UTF-8 UTF-8\npt_BR.UTF-8 UTF-8\nja_JP.UTF-8 UTF-8" >>/etc/locale.gen \
+	&& locale-gen
