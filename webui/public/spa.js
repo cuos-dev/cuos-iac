@@ -1,50 +1,60 @@
+let counter = 0;
+let refreshTimer;
+
+function state_idle(text, fg, remaining, duration) {
+  const min = String(Math.floor(remaining / 60)).padStart(2, '0');
+  const sec = String(remaining % 60).padStart(2, '0');
+  text.textContent = `${min}:${sec}`;
+  const percent = remaining / duration;
+  fg.style.strokeDashoffset = 628/4;
+  fg.style.strokeDasharray = 628 * (percent) + " " + 628 * (1 - percent);
+}
+
+function state_updating(text, fg) {
+  if (!refreshTimer) {
+    refreshTimer = setTimeout(function() {
+      location.href = "./";
+    }, 10*1000);
+  }
+  counter++;
+  text.textContent = ``;
+  fg.style.strokeDashoffset = counter * 300;
+  fg.style.strokeDasharray = "180 448";
+}
+
+
+function state_manualupdates(text, fg) {
+  text.textContent = `∞`;
+  fg.style.strokeDashoffset = 628/4;
+  fg.style.strokeDasharray = "0 628";
+  fg.style.display = "none";
+}
+
 // Timer-Animation für SVG-Kreis
 document.addEventListener('DOMContentLoaded', function() {
-  const duration = document.querySelector('.timer-svg').dataset.iacPollInterval || 21600; // 6h
-  // Hole das letzte Update aus einem Data-Attribut des SVG oder eines versteckten Elements
-  const lastUpdateStr = document.querySelector('.timer-svg').dataset.lastUpdate;
-  const iacStateStr = document.querySelector('.timer-svg').dataset.iacState;
-  const iacManualUpdates = document.querySelector('.timer-svg').dataset.iacManualUpdates;
-  let lastUpdate = lastUpdateStr ? new Date(lastUpdateStr) : new Date();
-
   const fg = document.querySelector('.timer-fg');
   const text = document.querySelector('.timer-text');
 
-  if (iacManualUpdates == "true") {
-    text.textContent = `∞`;
-    fg.style.strokeDashoffset = 628/4;
-    fg.style.strokeDasharray = "0 628";
-    fg.style.display = "none";
-    return;
-  }
+  const duration = document.querySelector('.timer-svg').dataset.iacPollInterval || 21600; // 6h
+  const iacStateStr = document.querySelector('.timer-svg').dataset.iacState;
+  const iacManualUpdates = document.querySelector('.timer-svg').dataset.iacManualUpdates;
+  const lastUpdateStr = document.querySelector('.timer-svg').dataset.lastUpdate;
+  let lastUpdate = lastUpdateStr ? new Date(lastUpdateStr) : new Date();
 
-  let timerInterval;
-  let counter = 0;
-  let refreshTimer;
   function updateTimer() {
     let now = new Date();
     let elapsed = Math.floor((now - lastUpdate) / 1000);
     let remaining = Math.max(duration - elapsed, 0);
 
-    if (remaining > 0 && iacStateStr !== "updating") {
-      const min = String(Math.floor(remaining / 60)).padStart(2, '0');
-      const sec = String(remaining % 60).padStart(2, '0');
-      text.textContent = `${min}:${sec}`;
-      const percent = remaining / duration;
-      fg.style.strokeDashoffset = 628/4;
-      fg.style.strokeDasharray = 628 * (percent) + " " + 628 * (1 - percent);
+    if (remaining <= 0 || iacStateStr === "updating") {
+      state_updating(text, fg);
+    } else if (iacManualUpdates == "true") {
+      state_manualupdates(text, fg);
     } else {
-      if (!refreshTimer) {
-        refreshTimer = setTimeout(function() {
-          location.href = "./";
-        }, 10*1000);
-      }
-      counter++;
-      text.textContent = ``;
-      fg.style.strokeDashoffset = counter * 300;
-      fg.style.strokeDasharray = "180 448";
+      state_idle(text, fg, remaining, duration);
     }
   }
-  timerInterval = setInterval(updateTimer, 490);
+
+  let timerInterval = setInterval(updateTimer, 490);
   updateTimer();
 });
