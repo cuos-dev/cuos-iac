@@ -52,10 +52,10 @@ init_state() {
     echo "{}" >"${STATE_FILE}"
   fi
   set_state '.last_iac_start = (now | todate)'
-  set_state '.iac_state = "updating"'
+  set_state '.iac_state = "starting"'
 }
 
-do-update-ca-certificates() {
+do_update_ca_certificates() {
   if [ -d "/etc/ssl/certs" ]; then
     echo "Updating CA certificates..."
     update-ca-certificates --fresh
@@ -309,12 +309,9 @@ docker_compose_check_digests() {
   return 0
 }
 
-init_state
-
-do-update-ca-certificates
-
 counter=0
-while true; do
+
+check_update() {
   if [ ! -f "$CONFIG_PATH" ]; then
     report "Error: $CONFIG_PATH not found, waiting..." >&2
     sleep 10
@@ -368,8 +365,30 @@ while true; do
     set_state '.iac_state = "error"'
   fi
   set_state '.last_iac_update_check = (now | todate)'
-  POLL_INTERVAL=$(jq -r '.iac_poll_interval // 21600' "$CONFIG_PATH")
+
+  POLL_INTERVAL=$(jq -r 'if .iac_manual_updates == true then "infinity"
+    else (.iac_poll_interval // 21600 | tostring) end' "$CONFIG_PATH")
+
   # if sleep was killed, than force direct os update
-  sleep "$POLL_INTERVAL" || counter=999
+  sleep "$POLL_INTERVAL" & wait || counter=999
   set_state '.iac_state = "updating"'
+}
+
+sleep_on_manual_updates() {
+  if jq -e '.iac_manual_updates == true' "${CONFIG_PATH}" > /dev/null && \
+      [[ -d "${REPO_DIR}/.git" ]]; then
+    set_state '.iac_state = "idle"'
+    sleep infinity & wait || counter=999
+    set_state '.iac_state = "updating"'
+  fi
+}
+
+init_state
+
+do_update_ca_certificates
+
+sleep_on_manual_updates
+
+while true; do
+  check_update
 done
