@@ -4,10 +4,19 @@ document.addEventListener('DOMContentLoaded', function() {
   // Hole das letzte Update aus einem Data-Attribut des SVG oder eines versteckten Elements
   const lastUpdateStr = document.querySelector('.timer-svg').dataset.lastUpdate;
   const iacStateStr = document.querySelector('.timer-svg').dataset.iacState;
+  const iacManualUpdates = document.querySelector('.timer-svg').dataset.iacManualUpdates;
   let lastUpdate = lastUpdateStr ? new Date(lastUpdateStr) : new Date();
 
   const fg = document.querySelector('.timer-fg');
   const text = document.querySelector('.timer-text');
+
+  if (iacManualUpdates == "true") {
+      text.textContent = `∞`;
+      fg.style.strokeDashoffset = 628/4;
+      fg.style.strokeDasharray = "0 628";
+      fg.style.display = "none";
+  }
+
   let timerInterval;
   let counter = 0;
   let refreshTimer;
