@@ -11,10 +11,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const text = document.querySelector('.timer-text');
 
   if (iacManualUpdates == "true") {
-      text.textContent = `∞`;
-      fg.style.strokeDashoffset = 628/4;
-      fg.style.strokeDasharray = "0 628";
-      fg.style.display = "none";
+    text.textContent = `∞`;
+    fg.style.strokeDashoffset = 628/4;
+    fg.style.strokeDasharray = "0 628";
+    fg.style.display = "none";
+    return;
   }
 
   let timerInterval;
