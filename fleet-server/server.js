@@ -91,6 +91,10 @@ app.get('/api/clients/:id/direct', requireAuth, (req, res) => {
   res.json({ url });
 });
 
+function max(a, b) {
+  return a > b ? a : b;
+}
+
 // Simple Web UI
 app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
 app.get('/ui', requireAuth, (req, res) => {
@@ -99,7 +103,7 @@ app.get('/ui', requireAuth, (req, res) => {
     hostname: c.hostname || '-',
     connection: c.status,
     state: (c.metrics?.app_state?.iac_state !== "idle" ? c.metrics?.app_state?.iac_state : c.metrics?.state?.state),
-    last_update: c.metrics?.app_state?.last_iac_update ?? c.metrics?.state?.last_update_date,
+    last_update: max(c.metrics?.app_state?.last_iac_update, c.metrics?.state?.last_update_date),
     metrics: c.metrics || { resources: {}, state: {} }
   }));
   res.render('clients', { clients: list });
