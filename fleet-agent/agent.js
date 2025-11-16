@@ -204,3 +204,4 @@ async function collectAndSendMetrics() {
 }
 
 connect();
+
