@@ -280,9 +280,8 @@ run_docker_compose() {
     --remove-orphans \
     --pull never
 
-  # remove old images
-  docker image prune -f || true
-  docker system prune -f --volumes || true
+  docker image prune -f --filter "until=96h" || true
+  docker builder prune -f --filter "until=240h" || true
 
   report "Started/Updated Docker Compose services."
 }
