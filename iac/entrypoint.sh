@@ -118,6 +118,22 @@ clone_or_pull_repo() {
   fi
 }
 
+decrypt_files() {
+  IAC_FILE_PASSPHRASE="$(jq -r '.system_file_password // empty' "$CONFIG_PATH")"
+  export IAC_FILE_PASSPHRASE
+
+  find "$REPO_DIR" \
+    -type f \
+    -iname \*.enc \
+    -exec "${SCRIPT_DIR}/config-decrypt.sh" "{}" ";"
+
+  local exclude_file
+  exclude_file="$(git -C "$REPO_DIR" rev-parse --git-dir)/info/exclude"
+  local enc_files
+  enc_files="$(cd "$REPO_DIR" && find "." -type f -iname \*.enc | sed -e 's/\.enc$//g')"
+  echo "${enc_files}" >"${exclude_file}"
+}
+
 verify_commit() {
   local signing_keys
   signing_keys="$(jq -r '(.iac_repo_signing_keys // []) | to_entries[] | "\(.key) \(.value)"' "$CONFIG_PATH")"
@@ -336,6 +352,9 @@ check_update() {
     if [[ "${state}" == "0" ]]; then
       commit="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")"
       set_state --arg commit "${commit}" '.iac_commit = $commit'
+
+      decrypt_files
+
       apply_system_json_if_changed
       system_json_changed="$?"
       set_state '.last_iac_update = (now | todate)'
