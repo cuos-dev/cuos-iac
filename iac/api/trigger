@@ -31,10 +31,13 @@ cuos_api() {
   return 0
 }
 
-INPUT="$(cat)"
 
-COMMAND="$(jq -r '.app_command // empty' <<< "${INPUT}")"
-COMMAND="${COMMAND:-"${1:-}"}"
+COMMAND="${1:-}"
+INPUT="{}"
+if [[ -z "${COMMAND}" ]]; then
+  read -r INPUT
+  COMMAND="$(jq -r '.app_command // empty' <<< "${INPUT}")"
+fi
 
 if [[ "${COMMAND}" = "" || "${COMMAND}" = "help" || "${COMMAND}" = "--help" ]]; then
   cat <<EOF
