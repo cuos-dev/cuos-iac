@@ -1,5 +1,36 @@
 #!/bin/bash
 
+cuos_api() {
+  local command="$1"
+  local json_data="${2:-""}"
+  if [[ ! -S $SOCKET_PATH ]]; then
+    echo "Socket does not exist: $SOCKET_PATH"
+    return 2
+  fi
+  if [[ "${json_data}" == "-" ]]; then
+    json_data="$(cat)"
+  fi
+
+  # open file descritor for socat. Input from pipe, Output to stdout
+  exec 3> >(socat - UNIX-CONNECT:$SOCKET_PATH)
+  local socat_pid="$!"
+
+  # Send a command
+  echo "${json_data:-"{}"}" | jq -c --arg command "$command" '.command = $command' >&3
+  # wait that socat exists
+  wait -f "${socat_pid}"
+  # close file descriptor and get return value of socat
+  local return_code="$?"
+  if [[ "${return_code}" != "0" ]]; then
+    echo "socat exited with return code ${return_code}."
+    return 1
+  fi
+
+  exec 3>&-
+
+  return 0
+}
+
 INPUT="$(cat)"
 
 COMMAND="$(jq -r '.app_command // empty' <<< "${INPUT}")"
@@ -28,6 +59,62 @@ elif [[ "${COMMAND}" = "ps" ]]; then
 ## state              - Provide IaC state
 elif [[ "${COMMAND}" = "state" ]]; then
 	cat /volume/state.json
+
+elif [[ "${COMMAND}" = "config" ]]; then
+  SIGNING_KEYS_FILE="/volume/signing_keys"
+  compat="$(echo "${INPUT}" | jq -r '.config // empty')"
+  ns="file"
+
+  # helpers
+  b64url_to_b64(){
+    s="$(cat)"
+    mod=$(( ${#s} % 4 ))
+    if [ $mod -eq 2 ]; then s="${s}=="
+    elif [ $mod -eq 3 ]; then s="${s}="
+    elif [ $mod -ne 0 ]; then return 1; fi
+    printf '%s' "$s" | tr -- '-_' '+/'
+  }
+
+  # split into payload, sig
+  payload_b64url="${compact%%.*}"
+  sig_b64url="${compact#*.}"
+
+  [ -n "$payload_b64url" ] && [ -n "$sig_b64url" ] || { echo "invalid compact input" >&2; exit 2; }
+
+  # decode payload to json (kept in variable)
+  json="$(echo "$payload_b64url" | b64url_to_b64 | base64 -d)" || { echo "invalid payload" >&2; exit 3; }
+
+  principal="$(ssh-keygen -Y find-principals -f "${SIGNING_KEYS_FILE}" \
+    -s <(echo "$sig_b64url" | b64url_to_b64 | base64 -d))" || exit 4
+
+
+  echo "$json" | ssh-keygen -Y verify \
+    -f "${SIGNING_KEYS_FILE}" \
+    -n "$ns" \
+    -I "$principal" \
+    -s <(printf '%s' "$sig_b64url" | b64url_to_b64 | base64 -d) >&2 \
+    || exit 5
+
+  now="$(date +%s)"
+  iat="$(printf '%s' "$json" | jq -r '.iat // empty')"
+  iat="${iat%%.*}"
+  if ! [[ "${iat}" =~ ^[0-9]+$ ]]; then
+    echo "invalid or missing iat: $iat" >&2
+    exit 6
+  fi
+
+  # Signature is only valid for 15mins:
+  if (( now > iat - 60 )) && (( now < iat + 900 )); then
+    name=$(echo "${json}" | jq -r '.name // "unknown"')
+    echo "Signed by ${name}" >&2
+
+    echo "${json}" | jq '{"config": .config}' | cuos_api "update" "-"
+    exit 0
+  fi
+
+  echo "Error: iat outside allowed window" >&2
+  echo "${now} - ${iat} = $(( now - iat ))"
+  exit 7
 
 else
 	echo "No valid command provided. Exiting."

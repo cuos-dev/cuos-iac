@@ -192,16 +192,14 @@ app.get('/', async (req, res) => {
 });
 
 app.get('/config', async (req, res) => {
-  const config = JSON.parse(await fs.readFile(configPath, 'utf8'));
   res.render('config', {
-    config: JSON.stringify(config, undefined, "  ")
   });
 });
 
 app.post('/config', bodyParser.urlencoded({ extended: false }), async (req, res) => {
   try {
     const config = req.body.config;
-    let response = await cuosApi("patch", config);
+    let response = await iacApi("config", {"config": config});
     res.render('send', { result: response });
   } catch (err) {
     res.render('send', { result: `Socket error: ${err.message}` });
@@ -217,10 +215,11 @@ app.post('/send', bodyParser.urlencoded({ extended: false }), async (req, res) =
   } catch {
     return res.render('home', { result: 'Ungültiges JSON in Datenfeld.' });
   }
+  const allowedCommands = ["shutdown", "reboot", "update", "rollback"];
 
   if (command === "app_update") {
     command = "update";
-  } else {
+  } else if (!allowedCommands.includes(command)) {
     return res.render('home', { result: 'Unknown command' });
   }
 

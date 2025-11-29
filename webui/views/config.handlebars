@@ -1,6 +1,12 @@
-<h4>Config</h4>
-<form method="POST">
-<textarea name="config">{{config}}</textarea>
-<br/>
-<input type="submit" value="save"/>
-</form>
+<div class="spa-container">
+  <section class="snap-section dark" id="timer-update">
+    <h1>CuOS IaC Config</h1>
+    <p>Please input signed configuration:</p>
+    <p>Command: <code>tool.sh config-sign system.json</code></p>
+    <form method="POST">
+      <textarea name="config" style="width: 80vw; height: 400px; border: 2px solid gray; color: white; background-color: transparent;"></textarea>
+      <br/>
+      <input type="submit" value="submit"/>
+    </form>
+  </section>
+</div>

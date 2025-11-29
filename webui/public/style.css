@@ -238,6 +238,7 @@ html, body {
   transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
   letter-spacing: 0.03em;
   margin: 0.7em 1em 0.7em 0;
+  text-decoration: none;
 }
 .action-btn:hover {
   background: linear-gradient(90deg, #00E5FF 0%, #00BCD4 100%);
