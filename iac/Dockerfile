@@ -10,6 +10,7 @@ LABEL dev.cuos.iac="1"
 LABEL dev.cuos.app_command="\
     --memory 512MB \
     --read-only \
+    --tmpfs /etc/ssl/certs:rw,noexec,nosuid,size=16m \
     --tmpfs /tmp:rw,size=64m \
     --volume /var/run/docker.sock:/var/run/docker.sock \
     --volume /root/.docker/config.json:/root/.docker/config.json:ro \

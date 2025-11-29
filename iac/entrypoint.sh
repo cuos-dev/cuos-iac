@@ -409,11 +409,11 @@ sleep_randomly() {
 
 sleep_on_manual_updates() {
   # no sleep if system is updating:
-  if [[ "$(get_state '.iac_state')" == "updating" ]]; then
+  if [[ ! -d "${REPO_DIR}/.git" || \
+      "$(get_state '.iac_state')" == "updating" ]]; then
     return
   fi
-  if jq -e '.iac_manual_updates == true' "${CONFIG_PATH}" > /dev/null && \
-      [[ -d "${REPO_DIR}/.git" ]]; then
+  if jq -e '.iac_manual_updates == true' "${CONFIG_PATH}" > /dev/null; then
     set_state '.iac_state = "idle"'
     sleep infinity & wait || counter=999
     set_state '.iac_state = "updating"'
