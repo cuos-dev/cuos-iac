@@ -32,7 +32,7 @@ report() {
 }
 
 get_state() {
-  jq "$@" "${STATE_FILE}"
+  jq -r "$@" "${STATE_FILE}"
 }
 set_state() {
   # disable xtrace in this function
@@ -52,7 +52,9 @@ init_state() {
     echo "{}" >"${STATE_FILE}"
   fi
   set_state '.last_iac_start = (now | todate)'
-  set_state '.iac_state = "starting"'
+  if [[ "$(get_state '.iac_state')" != "updating" ]]; then
+    set_state '.iac_state = "starting"'
+  fi
 }
 
 do_update_ca_certificates() {
@@ -368,23 +370,61 @@ check_update() {
   POLL_INTERVAL=$(jq -r 'if .iac_manual_updates == true then "infinity"
     else (.iac_poll_interval // 21600 | tostring) end' "$CONFIG_PATH")
 
+  # randomize the poll interval, to reduce concurrent traffic on update servers:
+  if [[ "${POLL_INTERVAL}" != "infinity" && "${POLL_INTERVAL}" -gt 1200 ]]; then
+    local poll_rand
+    poll_rand="$(( RANDOM % 300 ))"
+    POLL_INTERVAL="$(( POLL_INTERVAL - poll_rand ))"
+  fi
+
+
   # if sleep was killed, than force direct os update
   sleep "$POLL_INTERVAL" & wait || counter=999
   set_state '.iac_state = "updating"'
 }
 
+# sleep randomly, to reduce concurrent traffic on update servers:
+sleep_randomly() {
+  sleep "$(( RANDOM % 900 ))"
+}
+
 sleep_on_manual_updates() {
+  # no sleep if system is updating:
+  if [[ "$(get_state '.iac_state')" == "updating" ]]; then
+    return
+  fi
   if jq -e '.iac_manual_updates == true' "${CONFIG_PATH}" > /dev/null && \
       [[ -d "${REPO_DIR}/.git" ]]; then
     set_state '.iac_state = "idle"'
     sleep infinity & wait || counter=999
     set_state '.iac_state = "updating"'
+  else
+    sleep_randomly
   fi
 }
+
+# Start a UNIX socket server that executes /api/trigger for each connection.
+# This makes the `trigger` script callable via the socket at ${SOCKET_PATH}.
+IAC_SOCKET_PATH="/socket/cuos-iac.sock"
+IAC_SOCKET_DIR=$(dirname "${IAC_SOCKET_PATH}")
+mkdir -p "${IAC_SOCKET_DIR}"
+rm -f "${IAC_SOCKET_PATH}" || true
+
+start_socket() {
+  # Use fork to handle multiple connections.
+  socat UNIX-LISTEN:"${IAC_SOCKET_PATH}",fork,mode=666,unlink-close EXEC:"/api/trigger" &
+
+  IAC_SOCAT_PID="$!"
+  # Ensure socat is stopped when the container exits.
+  trap 'echo "Stopping socat"; kill "${IAC_SOCAT_PID}" 2>/dev/null || true' EXIT INT TERM
+}
+
 
 init_state
 
 do_update_ca_certificates
+
+start_socket
 
 sleep_on_manual_updates
 

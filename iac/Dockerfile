@@ -14,6 +14,7 @@ LABEL dev.cuos.app_command="\
     --volume /var/run/docker.sock:/var/run/docker.sock \
     --volume /root/.docker/config.json:/root/.docker/config.json:ro \
     --volume /var/run/cuos.sock:/var/run/cuos.sock \
+    --volume iac-socket:/socket \
     --volume /system.json:/system.json:ro \
     --volume /usr/local/share/ca-certificates/custom:/usr/local/share/ca-certificates/custom:ro"
 # --user user:group ???
@@ -31,8 +32,12 @@ RUN apt-get update && \
         wget \
         psmisc \
         openssh-client \
+        openssl \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY api/* /api/
 COPY *.sh /app/
+
+# Ensure scripts are executable inside the image
+RUN chmod +x /app/*.sh /api/* || true

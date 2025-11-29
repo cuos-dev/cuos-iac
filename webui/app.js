@@ -89,60 +89,89 @@ app.set('view engine', 'handlebars');
 app.set('views', path.join(__dirname, 'views'));
 
 function auth(req, res, next) {
-    const user = basicAuth(req);
+  const user = basicAuth(req);
 
-    if (!user || user.name !== USER) {
-        res.set('WWW-Authenticate', 'Basic realm="cuos"');
-        return res.status(401).send('Authentication required.');
-    }
+  if (!user || user.name !== USER) {
+    res.set('WWW-Authenticate', 'Basic realm="cuos"');
+    return res.status(401).send('Authentication required.');
+  }
 
-    // Check if PASS is a bcrypt hash and compare
-    const isHash = PASS.startsWith('$2b$') || PASS.startsWith('$2a$') || PASS.startsWith('$2y$');
-    const passwordMatches = isHash ? bcrypt.compareSync(user.pass, PASS) : user.pass === PASS;
+  // Check if PASS is a bcrypt hash and compare
+  const isHash = PASS.startsWith('$2b$') || PASS.startsWith('$2a$') || PASS.startsWith('$2y$');
+  const passwordMatches = isHash ? bcrypt.compareSync(user.pass, PASS) : user.pass === PASS;
 
-    if (!passwordMatches) {
-        res.set('WWW-Authenticate', 'Basic realm="cuos"');
-        return res.status(401).send('Authentication required.');
-    }
+  if (!passwordMatches) {
+    res.set('WWW-Authenticate', 'Basic realm="cuos"');
+    return res.status(401).send('Authentication required.');
+  }
 
-    next();
+  next();
 }
 
 function cuosApi(command, data = {}) {
-    return new Promise((resolve, reject) => {
-        const client = net.createConnection(SOCKET_PATH);
+  return new Promise((resolve, reject) => {
+    const client = net.createConnection(SOCKET_PATH);
 
-        client.on('connect', () => {
-            client.write(JSON.stringify({ command, ...data })+"\n");
-        });
-
-        let response = '';
-        client.on('data', (chunk) => {
-            response += chunk.toString();
-        });
-
-        client.on('end', () => {
-            try {
-                const result = JSON.parse(response);
-                resolve(result);
-            } catch (err) {
-		resolve(response.trim());
-            }
-        });
-
-        client.on('error', (err) => {
-            reject(err);
-        });
+    client.on('connect', () => {
+      client.write(JSON.stringify({ command, ...data })+"\n");
     });
+
+    let response = '';
+    client.on('data', (chunk) => {
+      response += chunk.toString();
+    });
+
+    client.on('end', () => {
+      try {
+        const result = JSON.parse(response);
+        resolve(result);
+      } catch (err) {
+        resolve(response.trim());
+      }
+    });
+
+    client.on('error', (err) => {
+      reject(err);
+    });
+  });
 }
+
+function iacApi(app_command, data = {}) {
+  return new Promise((resolve, reject) => {
+    const client = net.createConnection(IAC_SOCKET_PATH);
+
+    client.on('connect', () => {
+      client.write(JSON.stringify({ app_command, ...data })+"\n");
+    });
+
+    let response = '';
+    client.on('data', (chunk) => {
+      response += chunk.toString();
+    });
+
+    client.on('end', () => {
+      try {
+        const result = JSON.parse(response);
+        resolve(result);
+      } catch (err) {
+        resolve(response.trim());
+      }
+    });
+
+    client.on('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
 
 app.use(auth);
 
 app.get('/', async (req, res) => {
   const p_state = cuosApi('state');
   const p_resources = cuosApi('resources');
-  const p_app_ps = cuosApi('app', {"app_command": "ps"});
-  const p_app_state = cuosApi('app', {"app_command": "state"});
+  const p_app_ps = iacApi('ps');
+  const p_app_state = iacApi('state');
   const p_log = cuosApi('log');
   const state = await p_state;
   const resources = await p_resources;
@@ -189,21 +218,22 @@ app.post('/send', bodyParser.urlencoded({ extended: false }), async (req, res) =
     return res.render('home', { result: 'Ungültiges JSON in Datenfeld.' });
   }
 
-    if (command === "app_update") {
-        command = "app";
-        data = {"app_command": "update"}
-    }
+  if (command === "app_update") {
+    command = "update";
+  } else {
+    return res.render('home', { result: 'Unknown command' });
+  }
 
-    try {
-        let response = await cuosApi(command, data);
-        if (response === "") {
-            res.redirect('./');
-            return;
-        }
-        res.render('send', { result: response });
-    } catch (err) {
-        res.render('send', { result: `Socket error: ${err.message}` });
+  try {
+    let response = await iacApi(command);
+    if (response === "") {
+      res.redirect('./');
+      return;
     }
+    res.render('send', { result: response });
+  } catch (err) {
+    res.render('send', { result: `Socket error: ${err.message}` });
+  }
 });
 
 const PORT = 3000;
