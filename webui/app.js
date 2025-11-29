@@ -54,26 +54,27 @@ Handlebars.registerHelper('toLowerCase', function(string) {
 
 const configPath = "/system.json";
 const SOCKET_PATH = '/var/run/cuos.sock';
+const IAC_SOCKET_PATH = '/socket/cuos-iac.sock';
 let USER = 'admin';
 let PASS = 'admin';
 
 // Load configuration from /system.json if it exists
 let config = {};
 try {
-    config = JSON.parse(await fs.readFile(configPath, 'utf8'));
-    if (config['iac_user'] && config['iac_password']) {
-        USER = config['iac_user'];
-        PASS = config['iac_password'];
-    } else {
-        console.warn(`Configuration file ${configPath} does not contain user or pass fields.`);
-    }
+  config = JSON.parse(await fs.readFile(configPath, 'utf8'));
+  if (config['iac_user'] && config['iac_password']) {
+    USER = config['iac_user'];
+    PASS = config['iac_password'];
+  } else {
+    console.warn(`Configuration file ${configPath} does not contain user or pass fields.`);
+  }
 } catch (err) {
-    if (err.code === 'ENOENT') {
-        console.warn(`Configuration file /system.json not found, using default credentials.`);
-    } else {
-        console.error(`Error reading configuration file /system.json: ${err.message}`);
-        process.exit(1);
-    }
+  if (err.code === 'ENOENT') {
+    console.warn(`Configuration file /system.json not found, using default credentials.`);
+  } else {
+    console.error(`Error reading configuration file /system.json: ${err.message}`);
+    process.exit(1);
+  }
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -180,13 +181,13 @@ app.post('/config', bodyParser.urlencoded({ extended: false }), async (req, res)
 
 
 app.post('/send', bodyParser.urlencoded({ extended: false }), async (req, res) => {
-    let command = req.body.command || 'version';
-    let data = {};
-    try {
-        data = req.body.data ? JSON.parse(req.body.data) : {};
-    } catch {
-        return res.render('home', { result: 'Ungültiges JSON in Datenfeld.' });
-    }
+  let command = req.body.command || 'version';
+  let data = {};
+  try {
+    data = req.body.data ? JSON.parse(req.body.data) : {};
+  } catch {
+    return res.render('home', { result: 'Ungültiges JSON in Datenfeld.' });
+  }
 
     if (command === "app_update") {
         command = "app";
@@ -207,7 +208,7 @@ app.post('/send', bodyParser.urlencoded({ extended: false }), async (req, res) =
 
 const PORT = 3000;
 const server = app.listen(PORT, () => {
-    console.log(`iac-manager-webui listening on http://localhost:${PORT}`);
+  console.log(`iac-manager-webui listening on http://localhost:${PORT}`);
 });
 
 

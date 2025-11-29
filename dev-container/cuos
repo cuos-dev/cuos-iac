@@ -4,6 +4,17 @@ trap 'echo "Broken pipe detected!"' PIPE
 
 SOCKET_PATH="/var/run/cuos.sock"
 
+cuos_api_app() {
+    local app_command="$2"
+    local json_data="$3"
+    if [[ "${json_data}" == "-" ]]; then
+        json_data="$(cat)"
+    fi
+    echo "${json_data:-"{}"}" | \
+        jq -c --arg app_command "$app_command" '.app_command = $app_command' | \
+        cuos_api "app" -
+}
+
 cuos_api() {
     local command="$1"
     local json_data="$2"
@@ -34,6 +45,12 @@ cuos_api() {
 
     return 0
 }
+
+if [[ -n "${1:-}" && "$(type -t "cuos_api_${1}")" == "function" ]]; then
+    "cuos_api_${1}" "$@"
+    exit "$?"
+fi
+
 
 cuos_api "$@"
 exit "$?"

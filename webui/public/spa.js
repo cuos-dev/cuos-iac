@@ -46,10 +46,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let elapsed = Math.floor((now - lastUpdate) / 1000);
     let remaining = Math.max(duration - elapsed, 0);
 
-    if (remaining <= 0 || iacStateStr === "updating") {
+    if (iacStateStr === "updating") {
       state_updating(text, fg);
     } else if (iacManualUpdates == "true") {
       state_manualupdates(text, fg);
+    } else if (remaining <= 0) {
+      state_updating(text, fg);
     } else {
       state_idle(text, fg, remaining, duration);
     }
