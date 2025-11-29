@@ -98,7 +98,6 @@ services:
       - /data:/data
       - /dev:/dev
       - /proc:/proc
-      - /etc/partition_mode:/etc/partition_mode:ro
       - /system.json:/system.json:ro
       - /usr/local/share/ca-certificates/custom:/usr/local/share/ca-certificates/custom:ro
     environment:
