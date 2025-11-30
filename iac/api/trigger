@@ -65,7 +65,7 @@ elif [[ "${COMMAND}" = "state" ]]; then
 
 elif [[ "${COMMAND}" = "config" ]]; then
   SIGNING_KEYS_FILE="/volume/signing_keys"
-  compat="$(echo "${INPUT}" | jq -r '.config // empty')"
+  compact="$(echo "${INPUT}" | jq -r '.config // empty')"
   ns="file"
 
   # helpers
