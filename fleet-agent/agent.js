@@ -71,7 +71,7 @@ function connect() {
   ws = new WebSocket(wsUrl);
   ws.on('open', async () => {
     backoffMs = 5000; // reset
-    const hostname = systemConfig.hostname;
+    const hostname = systemConfig.hostname || systemConfig.system_name || systemConifg["iac_repo_subdir"] || "unknown";
     let cuosVersion = null;
     try { cuosVersion = await cuosApi('version'); } catch {}
     ws.send(JSON.stringify({
