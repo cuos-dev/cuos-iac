@@ -200,6 +200,10 @@ app.post('/config', bodyParser.urlencoded({ extended: false }), async (req, res)
   try {
     const config = req.body.config;
     let response = await iacApi("config", {"config": config});
+    if (response === "") {
+      res.redirect('./');
+      return;
+    }
     res.render('send', { result: response });
   } catch (err) {
     res.render('send', { result: `Socket error: ${err.message}` });
