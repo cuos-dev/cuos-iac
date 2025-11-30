@@ -326,12 +326,19 @@ docker_compose_check_digests() {
   return 0
 }
 
+isleep() {
+  sleep "$@" &
+  local sleep_pid="$!"
+
+  wait -f "${sleep_pid}"
+}
+
 counter=0
 
 check_update() {
   if [ ! -f "$CONFIG_PATH" ]; then
     report "Error: $CONFIG_PATH not found, waiting..." >&2
-    sleep 10
+    isleep 10
     exit 1
   fi
   clone_or_pull_repo
@@ -398,13 +405,13 @@ check_update() {
 
 
   # if sleep was killed, than force direct os update
-  sleep "$POLL_INTERVAL" & wait || counter=999
+  isleep "$POLL_INTERVAL" || counter=999
   set_state '.iac_state = "updating"'
 }
 
 # sleep randomly, to reduce concurrent traffic on update servers:
 sleep_randomly() {
-  sleep "$(( RANDOM % 900 ))"
+  isleep "$(( RANDOM % 900 ))"
 }
 
 sleep_on_manual_updates() {
@@ -415,7 +422,7 @@ sleep_on_manual_updates() {
   fi
   if jq -e '.iac_manual_updates == true' "${CONFIG_PATH}" > /dev/null; then
     set_state '.iac_state = "idle"'
-    sleep infinity & wait || counter=999
+    isleep infinity || counter=999
     set_state '.iac_state = "updating"'
   else
     sleep_randomly
