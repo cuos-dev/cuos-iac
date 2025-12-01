@@ -5,6 +5,9 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 set -x
 set -uo pipefail
 
+export SYSTEM_CONFIG_PATH="${SYSTEM_CONFIG_PATH:-"/system.json"}"
+export DOCKER_CONTEXT=default
+
 REPO_DIR="/volume/repo"
 CONFIG_PATH="/system.json"
 DOCKERCOMPOSE="${SCRIPT_DIR}/docker-compose-host-paths.sh"

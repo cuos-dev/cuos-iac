@@ -127,6 +127,8 @@ decrypt_files() {
     -iname \*.enc \
     -exec "${SCRIPT_DIR}/config-decrypt.sh" "{}" ";"
 
+  export IAC_FILE_PASSPHRASE=
+
   local exclude_file
   exclude_file="$(git -C "$REPO_DIR" rev-parse --git-dir)/info/exclude"
   local enc_files

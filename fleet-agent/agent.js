@@ -30,6 +30,9 @@ const heartbeatIntervalSec = systemConfig.heartbeat_interval_sec || 30;
 
 if (!fleetServerUrl) {
   console.error('No fleet_server_url configured');
+  console.log("SYSTEM_JSON", SYSTEM_JSON);
+  console.log("systemConfig", systemConfig);
+  await new Promise((resolve)=>setTimeout(resolve, 3000*1000));
   process.exit(1);
 }
 

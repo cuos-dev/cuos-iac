@@ -135,6 +135,7 @@
         <div class="sys-group sys-actions">
           <h2>Actions</h2>
           <a class="action-btn" href="./config">Config</a>
+          {{#if state}}
           <form class="actions-form" action="./send" method="post" style="display: inline;">
             <button class="action-btn" type="submit" name="command" value="shutdown">Shutdown</button>
             <button class="action-btn" type="submit" name="command" value="reboot">Reboot</button>
@@ -143,6 +144,7 @@
             <button class="action-btn danger" type="submit" name="command" value="rollback" onclick="return confirm('Rollback OS Update?');">Rollback OS Update</button>
             <!--<button class="action-btn danger" type="submit" name="command" value="factory-reset" onclick="return confirm('Factory Reset? All data will be lost!');">Factory Reset</button>-->
           </form>
+          {{/if}}
         </div>
       </div>
     </div>
