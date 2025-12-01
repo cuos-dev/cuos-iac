@@ -30,8 +30,6 @@ const heartbeatIntervalSec = systemConfig.heartbeat_interval_sec || 30;
 
 if (!fleetServerUrl) {
   console.error('No fleet_server_url configured');
-  console.log("SYSTEM_JSON", SYSTEM_JSON);
-  console.log("systemConfig", systemConfig);
   await new Promise((resolve)=>setTimeout(resolve, 3000*1000));
   process.exit(1);
 }
@@ -42,6 +40,9 @@ let uuid;
 try {
   if (fs.existsSync(UUID_FILE)) uuid = fs.readFileSync(UUID_FILE, 'utf8').trim();
 } catch {}
+if (!uuid) {
+  uuid = systemConfig.fleet_uuid;
+}
 if (!uuid) {
   uuid = crypto.randomUUID();
   try { fs.writeFileSync(UUID_FILE, uuid); } catch {}
