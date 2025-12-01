@@ -108,34 +108,6 @@ function auth(req, res, next) {
   next();
 }
 
-function cuosApi(command, data = {}) {
-  return new Promise((resolve, reject) => {
-    const client = net.createConnection(SOCKET_PATH);
-
-    client.on('connect', () => {
-      client.write(JSON.stringify({ command, ...data })+"\n");
-    });
-
-    let response = '';
-    client.on('data', (chunk) => {
-      response += chunk.toString();
-    });
-
-    client.on('end', () => {
-      try {
-        const result = JSON.parse(response);
-        resolve(result);
-      } catch (err) {
-        resolve(response.trim());
-      }
-    });
-
-    client.on('error', (err) => {
-      reject(err);
-    });
-  });
-}
-
 function iacApi(app_command, data = {}) {
   return new Promise((resolve, reject) => {
     const client = net.createConnection(IAC_SOCKET_PATH);
@@ -168,11 +140,11 @@ function iacApi(app_command, data = {}) {
 app.use(auth);
 
 app.get('/', async (req, res) => {
-  const p_state = cuosApi('state');
-  const p_resources = cuosApi('resources');
+  const p_state = iacApi('cuos:state');
+  const p_resources = iacApi('cuos:resources');
   const p_app_ps = iacApi('ps');
   const p_app_state = iacApi('state');
-  const p_log = cuosApi('log');
+  const p_log = iacApi('cuos:log');
   const state = await p_state;
   const resources = await p_resources;
   const app_ps = await p_app_ps;

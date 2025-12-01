@@ -67,6 +67,13 @@ elif [[ "${COMMAND}" = "ps" ]]; then
 elif [[ "${COMMAND}" = "state" ]]; then
 	cat /volume/state.json
 
+elif [[ "${COMMAND}" == "cuos:version" || \
+    "${COMMAND}" == "cuos:log" || \
+    "${COMMAND}" == "cuos:state" || \
+    "${COMMAND}" == "cuos:resources" ]]; then
+  COMMAND="${COMMAND//cuos:/}"
+  cuos_api "${COMMAND}"
+
 elif [[ "${COMMAND}" = "config" ]]; then
   set -x
 

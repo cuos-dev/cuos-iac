@@ -44,13 +44,13 @@ if (!uuid) {
   try { fs.writeFileSync(UUID_FILE, uuid); } catch {}
 }
 
-// ---- cuosApi (Unix socket) ----
-const SOCKET_PATH = process.env.CUOS_SOCKET_PATH || '/var/run/cuos.sock';
-function cuosApi(command, data = {}) {
+// ---- iacApi (Unix socket) ----
+const SOCKET_PATH = process.env.IAC_SOCKET_PATH || '/socket/cuos-iac.sock';
+function iacApi(app_command, data = {}) {
   return new Promise((resolve, reject) => {
     const client = net.createConnection(SOCKET_PATH);
     client.on('connect', () => {
-      client.write(JSON.stringify({ command, ...data }) + '\n');
+      client.write(JSON.stringify({ app_command, ...data }) + '\n');
     });
     let response = '';
     client.on('data', chunk => { response += chunk.toString(); });
@@ -73,7 +73,7 @@ function connect() {
     backoffMs = 5000; // reset
     const hostname = systemConfig.hostname || systemConfig.system_name || systemConifg["iac_repo_subdir"] || "unknown";
     let cuosVersion = null;
-    try { cuosVersion = await cuosApi('version'); } catch {}
+    try { cuosVersion = await iacApi('cuos:version'); } catch {}
     ws.send(JSON.stringify({
       type: 'client_hello',
       uuid,
@@ -132,7 +132,7 @@ async function handleUpdateTrigger(msg) {
   let error;
   try {
     // Use cuos API to trigger update similar to WebUI (app update)
-    const resp = await cuosApi('app', { app_command: 'update' });
+    const resp = await iacApi('update');
     // Assume empty string or object means success (adjust later if richer status returned)
     success = resp !== null && resp !== undefined;
   } catch (e) {
@@ -154,9 +154,9 @@ async function collectAndSendMetrics() {
   let stateData = {};
   let resourcesData = {};
   let appStateData = {};
-  try { stateData = await cuosApi('state'); } catch {}
-  try { resourcesData = await cuosApi('resources'); } catch {}
-  try { appStateData = await cuosApi('app', {"app_command": "state"}); } catch {}
+  try { stateData = await iacApi('cuos:state'); } catch {}
+  try { resourcesData = await iacApi('cuos:resources'); } catch {}
+  try { appStateData = await iacApi('state'); } catch {}
   // Derived percentages
   if (resourcesData.mem_used_mb && resourcesData.mem_total_mb) {
     resourcesData.ram_percent = Math.round((resourcesData.mem_used_mb / resourcesData.mem_total_mb) * 100);
