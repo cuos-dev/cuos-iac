@@ -6,7 +6,7 @@ cuos_api() {
   local command="$1"
   local json_data="${2:-""}"
   if [[ ! -S $SOCKET_PATH ]]; then
-    echo "Socket does not exist: $SOCKET_PATH"
+    echo "Socket does not exist: $SOCKET_PATH" >&2
     return 2
   fi
   if [[ "${json_data}" == "-" ]]; then
@@ -71,6 +71,10 @@ elif [[ "${COMMAND}" == "cuos:version" || \
     "${COMMAND}" == "cuos:log" || \
     "${COMMAND}" == "cuos:state" || \
     "${COMMAND}" == "cuos:resources" ]]; then
+  if [[ ! -S $SOCKET_PATH ]]; then
+    exit 0
+  fi
+
   COMMAND="${COMMAND//cuos:/}"
   cuos_api "${COMMAND}"
 

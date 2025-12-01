@@ -150,15 +150,17 @@ app.get('/', async (req, res) => {
   const app_ps = await p_app_ps;
   const app_state = await p_app_state;
   const log = await p_log;
-  const last_10_logs = log.slice(-100).reverse();
+  const last_10_logs = (Array.isArray(log) ? log.slice(-100).reverse() : []);
   const iac_repo_name = (config['iac_repo_url'] || '').replace(/^https?:\/\/.+\//, '').replace(/^git@.+:/, '').replace(/\.git$/, '');
   const iac_repo_url = (config['iac_repo_url'] || '').replace(/^(https?:\/\/)[^/]+@/, '$1').replace(/^git@/, 'https:\/\/').replace(/\.git$/, '');
   const iac_repo_branch = config['iac_repo_branch'] || 'main';
   const iac_poll_interval = config['iac_poll_interval'] || 21600;
   const iac_manual_updates = config['iac_manual_updates'] || false;
 
-  resources.ram_percent = Math.round((resources.mem_used_mb / resources.mem_total_mb) * 100);
-  resources.disk_percent = Math.round((resources.disk_used_mb / resources.disk_total_mb) * 100);
+  if (resources) {
+    resources.ram_percent = Math.round((resources.mem_used_mb / resources.mem_total_mb) * 100);
+    resources.disk_percent = Math.round((resources.disk_used_mb / resources.disk_total_mb) * 100);
+  }
 
   res.render('home', { state, resources, app_ps, app_state, hostname: req.hostname, iac_repo_name, iac_repo_url, iac_repo_branch, last_10_logs, iac_poll_interval, iac_manual_updates });
 });

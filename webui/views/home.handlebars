@@ -49,6 +49,7 @@
   <section class="snap-section dark" id="system-status">
     <div class="sys-flex">
       <div class="sys-groups">
+        {{#if state}}
         <div class="sys-group sys-main">
           <h2>System</h2>
           <div class="sys-row"><span class="sys-label">Status:</span> <span class="sys-value status-{{state.state}}">{{state.state}}</span></div>
@@ -60,6 +61,7 @@
           <div class="sys-row"><span class="sys-label">Slot:</span> <span class="sys-value">{{state.slot}}</span></div>
           <div><span class="sys-label">Update status:</span><br/><span class="sys-value">{{state.update_state}}</span></div>
         </div>
+        {{/if}}
         <div class="sys-group sys-iac">
           <h2>IaC</h2>
           <div class="sys-row"><span class="sys-label">IaC manager start:</span> <span class="sys-value">{{formatDate app_state.last_iac_start}}</span></div>
@@ -71,6 +73,7 @@
             <div class="sys-row"><span class="sys-label">Error:</span> <span class="sys-value error">{{app_state.error}}</span></div>
           {{/if}}
         </div>
+        {{#if resources}}
         <div class="sys-group sys-network">
           <h2>Network</h2>
           {{#each resources.network}}
@@ -90,8 +93,10 @@
             </ul>
           </div>
         </div>
+        {{/if}}
       </div>
       <div class="sys-groups">
+        {{#if resources}}
         <div class="sys-group sys-resources">
           <h2>Resources</h2>
           <div class="resource-bars">
@@ -126,6 +131,7 @@
             </div>
           </div>
         </div>
+        {{/if}}
         <div class="sys-group sys-actions">
           <h2>Actions</h2>
           <a class="action-btn" href="./config">Config</a>
