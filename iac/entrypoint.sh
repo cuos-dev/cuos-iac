@@ -231,7 +231,7 @@ apply_system_json_if_changed() {
       echo "${merged_config}" | jq '{"config": .}' | cuos_api "update" "-"
     else # assuming local type
       report "Info: Applying new system.json directly..."
-      echo "${merged_config}" | jq '{"config": .}' >"${CONFIG_PATH}"
+      echo "${merged_config}" >"${CONFIG_PATH}"
     fi
   else
     # no changes
