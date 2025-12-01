@@ -20,8 +20,6 @@ report() {
 }
 
 stop_docker_compose() {
-    touch /tmp/iac-stop
-
     local compose_file="${REPO_DIR}${REPO_DIR_SUBDIR}/docker-compose.yml"
     if [ ! -f "$compose_file" ]; then
         report "Error: No docker-compose.yml found in repo."
