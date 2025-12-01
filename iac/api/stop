@@ -1,7 +1,5 @@
 #!/bin/bash
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
 set -x
 set -uo pipefail
 
@@ -10,7 +8,7 @@ export DOCKER_CONTEXT=default
 
 REPO_DIR="/volume/repo"
 CONFIG_PATH="/system.json"
-DOCKERCOMPOSE="${SCRIPT_DIR}/docker-compose-host-paths.sh"
+DOCKERCOMPOSE="/app/docker-compose-host-paths.sh"
 
 REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")"
 if [ -n "$REPO_DIR_SUBDIR" ]; then
