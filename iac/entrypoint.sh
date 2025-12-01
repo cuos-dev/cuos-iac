@@ -333,6 +333,10 @@ isleep() {
   local sleep_pid="$!"
 
   wait -f "${sleep_pid}"
+
+  if [[ -f /tmp/iac-stop ]]; then
+    exit 0
+  fi
 }
 
 counter=0
