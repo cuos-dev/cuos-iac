@@ -448,7 +448,7 @@ start_socket() {
 
   IAC_SOCAT_PID="$!"
   # Ensure socat is stopped when the container exits.
-  trap 'echo "Stopping socat"; kill "${IAC_SOCAT_PID}" 2>/dev/null || true' EXIT INT TERM
+  trap 'echo "Stopping socat"; kill "${IAC_SOCAT_PID}" 2>/dev/null || true; exit 0' EXIT INT TERM
 }
 
 
