@@ -4,12 +4,6 @@ VOLUME ["/etc/ssh/keys", "/root"]
 ENTRYPOINT ["/entrypoint.sh"]
 WORKDIR /root
 
-COPY entrypoint.sh /
-COPY sshd_config_local.conf /etc/ssh/sshd_config.d/
-COPY vimrc.local /etc/vim/
-COPY gitconfig /etc/
-COPY cuos cuos-* docker /usr/local/bin/
-
 ENV container=docker
 
 RUN apt-get -y update &&\
@@ -39,3 +33,9 @@ RUN apt-get -y update &&\
 	&& rm -f /etc/ssh/ssh_host_* \
 	&& echo "en_US.UTF-8 UTF-8\nen_GB.UTF-8 UTF-8\nde_DE.UTF-8 UTF-8\nfr_FR.UTF-8 UTF-8\nes_ES.UTF-8 UTF-8\npt_BR.UTF-8 UTF-8\nja_JP.UTF-8 UTF-8" >/etc/locale.gen \
 	&& /usr/sbin/locale-gen
+
+COPY entrypoint.sh /
+COPY sshd_config_local.conf /etc/ssh/sshd_config.d/
+COPY vimrc.local /etc/vim/
+COPY gitconfig /etc/
+COPY cuos cuos-* docker /usr/local/bin/

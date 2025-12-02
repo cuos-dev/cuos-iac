@@ -405,6 +405,8 @@ check_update() {
     POLL_INTERVAL="$(( POLL_INTERVAL - poll_rand ))"
   fi
 
+  startup_done
+
 
   # if sleep was killed, than force direct os update
   isleep "$POLL_INTERVAL" || counter=999
@@ -413,7 +415,7 @@ check_update() {
 
 # sleep randomly, to reduce concurrent traffic on update servers:
 sleep_randomly() {
-  isleep "$(( RANDOM % 900 ))"
+  isleep "$(( RANDOM % 180 ))"
 }
 
 sleep_on_manual_updates() {
@@ -424,6 +426,7 @@ sleep_on_manual_updates() {
   fi
   if jq -e '.iac_manual_updates == true' "${CONFIG_PATH}" > /dev/null; then
     set_state '.iac_state = "idle"'
+    startup_done
     isleep infinity || counter=999
     set_state '.iac_state = "updating"'
   else
@@ -445,6 +448,14 @@ start_socket() {
   IAC_SOCAT_PID="$!"
   # Ensure socat is stopped when the container exits.
   trap 'echo "Stopping socat"; kill "${IAC_SOCAT_PID}" 2>/dev/null || true; exit 0' EXIT INT TERM
+}
+
+startup_state=0
+startup_done() {
+  if [[ "${startup_state}" == "0" ]]; then
+    startup_state=1
+    jq '{"message": ("IaC WebUI reachable via http://"+(.hostname//"<MY IP>")+":8030/ if activated.")}' "${CONFIG_JSON}" | cuos_api "report_app_ready"
+  fi
 }
 
 
