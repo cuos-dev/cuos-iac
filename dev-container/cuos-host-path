@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Path to the real docker binary (avoid recursion, see ./docker script)
+DOCKER_REAL="${DOCKER_REAL:-/usr/bin/docker}"
+
 # Usage: ./resolve_host_path.sh /path/inside/container
 container_path="$(realpath "$1")"
 
@@ -67,7 +70,7 @@ for mount in $mounts; do
   esac
 done
 
-merged_dir="$(docker inspect -f '{{ .GraphDriver.Data.MergedDir }}' "$my_container_id")"
+merged_dir="$("${DOCKER_REAL}" inspect -f '{{ .GraphDriver.Data.MergedDir }}' "$my_container_id")"
 
 echo "${merged_dir}${container_path}"
 

@@ -30,6 +30,7 @@ looks_like_path() {
 # Minimal, safe tilde expansion: ~ and ~/ only (no ~user)
 expand_tilde_minimal() {
   local p="$1"
+  # shellcheck disable=SC2088
   case "$p" in
     "~")   printf '%s' "${HOME:-$p}";;
     "~/"*) printf '%s/%s' "${HOME:-~}" "${p#~/}";;
@@ -146,7 +147,6 @@ rewrite_mount_spec() {
   mapfile -d '' -t fields < <(split_mount_fields "$spec")
   local out_fields=()
   local key val unq quote mapped
-  local modified=0
 
   for kv in "${fields[@]}"; do
     if [[ "$kv" =~ ^([[:space:]]*src|[[:space:]]*source)[[:space:]]*=(.*)$ ]]; then
@@ -163,7 +163,6 @@ rewrite_mount_spec() {
         else
           out_fields+=("${key}=${mapped}")
         fi
-        modified=1
       else
         out_fields+=("$kv")
       fi
