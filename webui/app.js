@@ -157,7 +157,7 @@ app.get('/', async (req, res) => {
   const iac_poll_interval = config['iac_poll_interval'] || 21600;
   const iac_manual_updates = config['iac_manual_updates'] || false;
 
-  if (resources) {
+  if (typeof resources === "objects") {
     resources.ram_percent = Math.round((resources.mem_used_mb / resources.mem_total_mb) * 100);
     resources.disk_percent = Math.round((resources.disk_used_mb / resources.disk_total_mb) * 100);
   }

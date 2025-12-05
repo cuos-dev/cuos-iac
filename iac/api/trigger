@@ -24,7 +24,7 @@ cuos_api() {
   # close file descriptor and get return value of socat
   local return_code="$?"
   if [[ "${return_code}" != "0" ]]; then
-    echo "socat exited with return code ${return_code}."
+    echo "socat exited with return code ${return_code}." >&2
     return 1
   fi
 
