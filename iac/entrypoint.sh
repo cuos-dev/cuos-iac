@@ -454,7 +454,7 @@ startup_state=0
 startup_done() {
   if [[ "${startup_state}" == "0" ]]; then
     startup_state=1
-    jq '{"message": ("IaC WebUI reachable via http://"+(.hostname//"<MY IP>")+":8030/ if activated.")}' "${CONFIG_PATH}" | cuos_api "report_app_ready"
+    jq '{"message": ("IaC WebUI reachable via http://"+(.hostname//"<MY IP>")+":8030/ if activated.")}' "${CONFIG_PATH}" | cuos_api "report_app_ready" -
   fi
 }
 
