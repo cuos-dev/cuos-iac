@@ -130,7 +130,7 @@ decrypt_files() {
   export IAC_FILE_PASSPHRASE=
 
   local exclude_file
-  exclude_file="$(git -C "$REPO_DIR" rev-parse --git-dir)/info/exclude"
+  exclude_file="${REPO_DIR}/.git/info/exclude"
   local enc_files
   enc_files="$(cd "$REPO_DIR" && find "." -type f -iname \*.enc | sed -e 's/\.enc$//g')"
   echo "${enc_files}" >"${exclude_file}"
