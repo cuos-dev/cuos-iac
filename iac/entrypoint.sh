@@ -95,7 +95,10 @@ clone_or_pull_repo() {
       git_clone "$repo_url" "$repo_branch" || return 1
     fi
     # check if repo is up to date
-    last_commit=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")
+    local last_commit
+    last_commit="$(get_state '.iac_commit')"
+    last_commit="${last_commit:-"$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)"}"
+
     if [ -n "$repo_branch" ]; then
       git -C "$REPO_DIR" checkout "$repo_branch" ||  git_clone "$repo_url" "$repo_branch" || return 1
     fi
@@ -104,6 +107,7 @@ clone_or_pull_repo() {
     git -C "$REPO_DIR" submodule update --init --recursive || true
     git -C "$REPO_DIR" submodule foreach --recursive 'git fetch --all' || true
     git -C "$REPO_DIR" submodule update --init --recursive || true
+    local commit
     commit=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")
     if [ "$commit" == "$last_commit" ]; then
       echo "No changes detected: $commit"
@@ -228,7 +232,17 @@ apply_system_json_if_changed() {
   if echo "${merged_config}" | are_json_files_different "-" "${CONFIG_PATH}"; then
     if [[ "${SYSTEM_TYPE}" == "cuos" ]]; then
       report "Info: Applying new system.json via socket..."
-      echo "${merged_config}" | jq '{"config": .}' | cuos_api "update" "-"
+      local update_res
+      update_res="$(echo "${merged_config}" | jq '{"config": .}' \
+        | cuos_api "update:json" "-")"
+      local update_res_err
+      update_res_err="$(echo "${update_res}" | jq -r '.err')"
+      local update_res_msg
+      update_res_msg="$(echo "${update_res}" | jq -r '.message')"
+      if [[ "${update_res_err}" != "0" ]]; then
+        report "Error: ${update_res_msg}"
+        return 2
+      fi
     else # assuming local type
       report "Info: Applying new system.json directly..."
       echo "${merged_config}" >"${CONFIG_PATH}"
@@ -297,6 +311,7 @@ run_docker_compose() {
   "$DOCKERCOMPOSE" \
     -f "$compose_file" \
     up -d \
+    "$@" \
     --remove-orphans \
     --pull never
 
@@ -337,63 +352,90 @@ isleep() {
 
 counter=0
 
+perform_update() {
+  set_state '.last_iac_update_check = (now | todate)'
+
+  clone_or_pull_repo
+  state="$?"
+  if [[ "${state}" == "1" ]]; then
+    report "Error: Could not clone/pull repo." >&2
+    set_state '.iac_state = "pull repo failed"'
+    return
+  fi
+  if ! verify_commit; then
+    report "Error: Could not verify last commit. Skip applying changes." >&2
+    set_state '.iac_state = "verification failed"'
+    return
+  fi
+
+  REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")"
+  if [ -n "$REPO_DIR_SUBDIR" ]; then
+    REPO_DIR_SUBDIR="/$REPO_DIR_SUBDIR"
+  fi
+
+  # repo has update / is new:
+  if [[ "${state}" == "0" ]]; then
+    decrypt_files
+
+    apply_system_json_if_changed
+    local system_json_changed="$?"
+    local failed=""
+    # system json changed
+    if [[ "${system_json_changed}" == "0" ]]; then
+      run_docker_compose_build || failed="docker build failed"
+      # force-recreate, if CA certificates or similar changed
+      run_docker_compose --force-recreate || failed="docker compose failed"
+    # system json not changed
+    elif [[ "${system_json_changed}" == "3" ]]; then
+      run_docker_compose_build || failed="docker build failed"
+      run_docker_compose || failed="docker compose failed"
+      # TODO: detect if bind mounts changed: restart containers
+    else
+      failed="applying system.json failed"
+    fi
+
+    if [[ -z "${failed}" ]]; then
+      local commit
+      commit="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")"
+      set_state --arg commit "${commit}" '.iac_commit = $commit'
+      set_state '.last_iac_update = (now | todate)'
+      counter=0
+    else
+      set_state --arg failed "${failed}" '.iac_state = $failed'
+    fi
+  else
+    # non tagged images may have changed:
+    if ! run_docker_compose; then
+      set_state '.iac_state = "docker compose failed"'
+    fi
+  fi
+
+  set_state '.iac_state = "running"'
+}
+
+perform_update_os_if_not_tagged() {
+  # poll os update, only needed if digest is empty
+  OS_DIGEST="$(jq -r '.os_image_digest // empty' "${CONFIG_PATH}")"
+  if [[ "${OS_DIGEST}" == "" && "${SYSTEM_TYPE}" == "cuos" ]]; then
+    counter="$((counter + 1))"
+    # every 2h:
+    if [[ "${counter}" -ge 8 ]]; then
+      cuos_api "update:json"
+      counter=0
+    fi
+  fi
+}
+
+
 check_update() {
   if [ ! -f "$CONFIG_PATH" ]; then
     report "Error: $CONFIG_PATH not found, waiting..." >&2
     isleep 10
     exit 1
   fi
-  clone_or_pull_repo
-  state="$?"
-  if ! verify_commit; then
-    report "Error: Could not verify last commit. Skip applying changes." >&2
-    set_state '.iac_state = "verification-failed"'
-
-  # repo is there:
-  elif [[ "${state}" != "1" ]]; then
-
-    REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")"
-    if [ -n "$REPO_DIR_SUBDIR" ]; then
-      REPO_DIR_SUBDIR="/$REPO_DIR_SUBDIR"
-    fi
-    system_json_changed="-1"
-    # repo has update / is new:
-    if [[ "${state}" == "0" ]]; then
-      commit="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")"
-      set_state --arg commit "${commit}" '.iac_commit = $commit'
-
-      decrypt_files
-
-      apply_system_json_if_changed
-      system_json_changed="$?"
-      set_state '.last_iac_update = (now | todate)'
-      counter=0
-
-      run_docker_compose_build
-    fi
-    if [[ "${system_json_changed}" == "0" ]]; then
-      run_docker_compose --force-recreate
-    else
-      run_docker_compose
-    fi
-
-    # poll os update, only needed if digest is empty
-    OS_DIGEST="$(jq -r '.os_image_digest // empty' "${CONFIG_PATH}")"
-    if [[ "${OS_DIGEST}" == "" && "${SYSTEM_TYPE}" == "cuos" ]]; then
-      counter="$((counter + 1))"
-      # every 2h:
-      if [[ "${counter}" -ge 8 ]]; then
-        cuos_api update
-        counter=0
-      fi
-# TODO: Self update
-    fi
-    set_state '.iac_state = "idle"'
-  else
-    report "Error: Could not clone/pull repo." >&2
-    set_state '.iac_state = "error"'
-  fi
-  set_state '.last_iac_update_check = (now | todate)'
+  perform_update
+  perform_update_os_if_not_tagged
+  # TODO: Self update
 
   POLL_INTERVAL=$(jq -r 'if .iac_manual_updates == true then "infinity"
     else (.iac_poll_interval // 21600 | tostring) end' "$CONFIG_PATH")
@@ -425,7 +467,7 @@ sleep_on_manual_updates() {
     return
   fi
   if jq -e '.iac_manual_updates == true' "${CONFIG_PATH}" > /dev/null; then
-    set_state '.iac_state = "idle"'
+    set_state '.iac_state = "running"'
     startup_done
     isleep infinity || counter=999
     set_state '.iac_state = "updating"'

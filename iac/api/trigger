@@ -68,6 +68,7 @@ elif [[ "${COMMAND}" = "state" ]]; then
 	cat /volume/state.json
 
 elif [[ "${COMMAND}" == "cuos:version" || \
+    "${COMMAND}" == "cuos:version:json" || \
     "${COMMAND}" == "cuos:log" || \
     "${COMMAND}" == "cuos:state" || \
     "${COMMAND}" == "cuos:resources" ]]; then
