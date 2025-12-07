@@ -51,7 +51,7 @@ html, body {
 }
 .timer-fg {
   fill: none;
-  stroke: #00BCD4;
+  stroke: #C04000;
   stroke-width: 12;
   stroke-linecap: round;
   stroke-dasharray: 628;
@@ -60,9 +60,33 @@ html, body {
 }
 .timer-text {
   font-size: 2.5em;
-  fill: #00BCD4;
+  fill: #C04000;
   font-family: system-ui, sans-serif;
   dominant-baseline: middle;
+}
+.iac-state {
+  color: #C04000;
+  font-size: 1.5em;
+  font-weight: bold;
+  padding-bottom: 0.7em;
+}
+.updating .timer-fg,
+.running .timer-fg,
+.starting .timer-fg {
+  stroke: #00BCD4;
+}
+.updating .timer-text,
+.running .timer-text,
+.starting .timer-text {
+  fill: #00BCD4;
+}
+.updating .iac-state,
+.running .iac-state {
+  color: #00BCD4;
+  display: none
+}
+.starting .iac-state {
+  color: #00BCD4;
 }
 .update-btn {
   margin-top: 2em;

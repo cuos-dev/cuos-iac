@@ -2,12 +2,13 @@
   <!-- Seite 1: Timer & Update -->
   <section class="snap-section dark" id="timer-update">
     <h1>CuOS IaC</h1>
-    <div class="timer-block">
+    <div class="timer-block" class="{{app_state.iac_state}}">
       <svg class="timer-svg" width="220" height="220" viewBox="0 0 220 220" data-last-update="{{app_state.last_iac_update_check}}" data-iac-state="{{app_state.iac_state}}" data-iac-poll-interval="{{iac_poll_interval}}" data-iac-manual-updates="{{iac_manual_updates}}">
         <circle class="timer-bg" cx="110" cy="110" r="100"/>
         <circle class="timer-fg" cx="110" cy="110" r="100" style="stroke-dashoffset: 157px;"/>
         <text class="timer-text" x="50%" y="54%" text-anchor="middle" alignment-baseline="middle">{{timerMinutes}}:{{timerSeconds}}</text>
       </svg>
+      <div class="iac-state">{{app_state.iac_state}}</div>
       <div class="last-update">Last update: {{formatDate app_state.last_iac_update_check}}</div>
       <form method="POST" action="./send">
         <input type="hidden" name="command" value="app_update"/>
