@@ -14,8 +14,10 @@ fi
 # exclusions:
 case "$1" in
   "/root/.docker/config.json") echo "$1";exit;;
-  "/var/lib/docker.sock") echo "$1";exit;;
-  "/var/lib/cuos.sock") echo "$1";exit;;
+  "/var/run/docker.sock") echo "$1";exit;;
+  "/run/docker.sock") echo "$1";exit;;
+  "/var/run/cuos.sock") echo "$1";exit;;
+  "/run/cuos.sock") echo "$1";exit;;
   "/etc/machine-id") echo "$1";exit;;
   "/system.json") echo "$1";exit;;
   "/dev") echo "$1";exit;;
