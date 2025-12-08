@@ -70,22 +70,22 @@ html, body {
   font-weight: bold;
   padding-bottom: 0.7em;
 }
-.updating .timer-fg,
-.running .timer-fg,
-.starting .timer-fg {
+.state-updating .timer-fg,
+.state-running .timer-fg,
+.state-starting .timer-fg {
   stroke: #00BCD4;
 }
-.updating .timer-text,
-.running .timer-text,
-.starting .timer-text {
+.state-updating .timer-text,
+.state-running .timer-text,
+.state-starting .timer-text {
   fill: #00BCD4;
 }
-.updating .iac-state,
-.running .iac-state {
+.state-updating .iac-state,
+.state-running .iac-state {
   color: #00BCD4;
   display: none
 }
-.starting .iac-state {
+.state-starting .iac-state {
   color: #00BCD4;
 }
 .update-btn {

@@ -51,6 +51,9 @@ Handlebars.registerHelper('toLowerCase', function(string) {
   if (typeof string !== 'string') return string;
   return string.toLowerCase();
 });
+Handlebars.registerHelper('stateClass', function(state) {
+  return "state-"+state.replace(/[^a-zA-Z0-9]/g, "-");
+});
 
 const configPath = "/system.json";
 const SOCKET_PATH = '/var/run/cuos.sock';
