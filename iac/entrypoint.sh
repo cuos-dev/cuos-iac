@@ -360,12 +360,12 @@ perform_update() {
   if [[ "${state}" == "1" ]]; then
     report "Error: Could not clone/pull repo." >&2
     set_state '.iac_state = "pull repo failed"'
-    return
+    return 1
   fi
   if ! verify_commit; then
     report "Error: Could not verify last commit. Skip applying changes." >&2
     set_state '.iac_state = "verification failed"'
-    return
+    return 1
   fi
 
   REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")"
@@ -402,15 +402,18 @@ perform_update() {
       counter=0
     else
       set_state --arg failed "${failed}" '.iac_state = $failed'
+      return 1
     fi
   else
     # non tagged images may have changed:
     if ! run_docker_compose; then
       set_state '.iac_state = "docker compose failed"'
+      return 1
     fi
   fi
 
   set_state '.iac_state = "running"'
+  return 0
 }
 
 perform_update_os_if_not_tagged() {
