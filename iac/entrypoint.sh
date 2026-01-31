@@ -316,7 +316,7 @@ run_docker_compose() {
     --pull never
 
   docker image prune -f --filter "until=96h" || true
-  docker builder prune -f --filter "until=240h" || true
+  docker builder prune -f --filter "until=240h" 2>/dev/null || true
 
   report "Started/Updated Docker Compose services."
 }

@@ -16,6 +16,8 @@ LABEL dev.cuos.app_command="\
     --volume /root/.docker/config.json:/root/.docker/config.json:ro \
     --volume /var/run/cuos.sock:/var/run/cuos.sock \
     --volume iac-socket:/socket \
+    --volume iac-volume:/volume \
+    --volume iac-root-docker:/root/.docker \
     --volume /system.json:/system.json:ro \
     --volume /usr/local/share/ca-certificates/custom:/usr/local/share/ca-certificates/custom:ro"
 # --user user:group ???
