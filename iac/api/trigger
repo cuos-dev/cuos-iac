@@ -71,7 +71,10 @@ elif [[ "${COMMAND}" == "cuos:version" || \
     "${COMMAND}" == "cuos:version:json" || \
     "${COMMAND}" == "cuos:log" || \
     "${COMMAND}" == "cuos:state" || \
-    "${COMMAND}" == "cuos:resources" ]]; then
+    "${COMMAND}" == "cuos:resources" || \
+    "${COMMAND}" == "cuos:shutdown" || \
+    "${COMMAND}" == "cuos:reboot" || \
+    "${COMMAND}" == "cuos:rollback" ]]; then
   if [[ ! -S $SOCKET_PATH ]]; then
     exit 0
   fi

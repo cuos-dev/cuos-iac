@@ -196,7 +196,7 @@ app.post('/send', bodyParser.urlencoded({ extended: false }), async (req, res) =
   } catch {
     return res.render('home', { result: 'Ungültiges JSON in Datenfeld.' });
   }
-  const allowedCommands = ["shutdown", "reboot", "update", "rollback"];
+  const allowedCommands = ["cuos:shutdown", "cuos:reboot", "cuos:update", "cuos:rollback"];
 
   if (command === "app_update") {
     command = "update";
