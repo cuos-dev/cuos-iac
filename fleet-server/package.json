@@ -9,7 +9,7 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "express": "^5.2.1",
     "ws": "^8.18.0",
     "basic-auth": "^2.0.1",
     "express-handlebars": "^7.1.2"
