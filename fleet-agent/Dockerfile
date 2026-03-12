@@ -1,4 +1,4 @@
-FROM node:24-alpine
+FROM node:25.8.1-alpine3.22
 
 WORKDIR /app
 VOLUME ["/data"]

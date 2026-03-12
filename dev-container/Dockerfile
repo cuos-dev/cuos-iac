@@ -1,4 +1,4 @@
-FROM debian:trixie
+FROM debian:13.3
 
 VOLUME ["/etc/ssh/keys", "/root"]
 ENTRYPOINT ["/entrypoint.sh"]
