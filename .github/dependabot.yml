@@ -1,32 +1,86 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    directory: ".github/workflows/"
+    directory: "/"
     schedule:
       interval: "weekly"
+    target-branch: "development"
     assignees:
       - "simonwalz"
-  - package-ecosystem: "docker"
-    directory: "/src"
+  - package-ecosystem: "npm"
+    directory: "/fleet-agent"
     schedule:
       interval: "daily"
+    target-branch: "development"
     assignees:
       - "simonwalz"
-  - package-ecosystem: "docker"
-    directory: "/webui"
+  - package-ecosystem: "npm"
+    directory: "/fleet-server"
     schedule:
       interval: "daily"
-    assignees:
-      - "simonwalz"
-  - package-ecosystem: "docker"
-    directory: "/dev-container"
-    schedule:
-      interval: "daily"
+    target-branch: "development"
     assignees:
       - "simonwalz"
   - package-ecosystem: "npm"
     directory: "/webui"
     schedule:
       interval: "daily"
+    target-branch: "development"
+    assignees:
+      - "simonwalz"
+  - package-ecosystem: "docker"
+    directory: "/dev-container"
+    schedule:
+      interval: "daily"
+    target-branch: "development"
+    assignees:
+      - "simonwalz"
+  - package-ecosystem: "docker"
+    directory: "/firewall"
+    schedule:
+      interval: "daily"
+    target-branch: "development"
+    assignees:
+      - "simonwalz"
+  - package-ecosystem: "docker"
+    directory: "/fleet-agent"
+    schedule:
+      interval: "daily"
+    target-branch: "development"
+    assignees:
+      - "simonwalz"
+  - package-ecosystem: "docker"
+    directory: "/fleet-server"
+    schedule:
+      interval: "daily"
+    target-branch: "development"
+    assignees:
+      - "simonwalz"
+  - package-ecosystem: "docker"
+    directory: "/iac"
+    schedule:
+      interval: "daily"
+    target-branch: "development"
+    assignees:
+      - "simonwalz"
+  - package-ecosystem: "docker"
+    directory: "/volume-backup"
+    schedule:
+      interval: "daily"
+    target-branch: "development"
+    assignees:
+      - "simonwalz"
+  - package-ecosystem: "docker"
+    directory: "/volume-backup/complex"
+    schedule:
+      interval: "daily"
+    target-branch: "development"
+    assignees:
+      - "simonwalz"
+  - package-ecosystem: "docker"
+    directory: "/webui"
+    schedule:
+      interval: "daily"
+    target-branch: "development"
     assignees:
       - "simonwalz"
