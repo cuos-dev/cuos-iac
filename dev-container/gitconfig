@@ -4,3 +4,5 @@
 	tree = log --oneline --decorate --all --graph
 [push]
 	default = simple
+[pull]
+	rebase = false
