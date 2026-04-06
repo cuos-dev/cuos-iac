@@ -2,9 +2,10 @@ let counter = 0;
 let refreshTimer;
 
 function state_idle(text, fg, remaining, duration) {
-  const min = String(Math.floor(remaining / 60)).padStart(2, '0');
+  const hour = String(Math.floor(remaining / 3600)).padStart(2, '0');
+  const min = String(Math.floor(remaining / 60) % 60).padStart(2, '0');
   const sec = String(remaining % 60).padStart(2, '0');
-  text.textContent = `${min}:${sec}`;
+  text.textContent = (hour !== "00" ? `${hour}:`:``) + `${min}:${sec}`;
   const percent = remaining / duration;
   fg.style.strokeDashoffset = 628/4;
   fg.style.strokeDasharray = 628 * (percent) + " " + 628 * (1 - percent);
