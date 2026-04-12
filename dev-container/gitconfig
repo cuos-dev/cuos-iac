@@ -6,3 +6,5 @@
 	default = simple
 [pull]
 	rebase = false
+[submodule]
+	recurse = true

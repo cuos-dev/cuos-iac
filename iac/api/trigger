@@ -60,7 +60,7 @@ elif [[ "${COMMAND}" = "update" ]]; then
 
 ## ps                 - Show docker ps as JSON
 elif [[ "${COMMAND}" = "ps" ]]; then
-	docker ps --format '{{json .}}' | jq -s .
+	docker ps -a --format '{{json .}}' | jq -s .
 	#COMPOSE_PROJECT_NAME="iac" docker-compose -f /volume/repo/docker-compose.yml ps --format '{{json .}}'
 
 ## state              - Provide IaC state
