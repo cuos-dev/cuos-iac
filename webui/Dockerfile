@@ -1,4 +1,4 @@
-FROM node:25.9.0-alpine3.22
+FROM node:26.1.0-alpine3.22
 
 WORKDIR /app
 EXPOSE 3000
