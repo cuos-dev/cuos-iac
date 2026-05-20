@@ -1,4 +1,4 @@
-FROM debian:13.4
+FROM debian:13.5
 
 VOLUME ["/etc/ssh/keys", "/root"]
 ENTRYPOINT ["/entrypoint.sh"]
