@@ -388,3 +388,14 @@ html, body {
     font-size: 0.93em;
   }
 }
+.btn-sm {
+  background: #2a2a2a;
+  border: 1px solid #555;
+  color: #ccc;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 0.9em;
+  cursor: pointer;
+  margin: 0 1px;
+}
+.btn-sm:hover { background: #3a3a3a; color: #fff; }
