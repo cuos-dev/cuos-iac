@@ -72,14 +72,14 @@ app.get('/api/state', (req, res) => {
   let last = '';
   async function poll() {
     try {
-      const [cuosState, resources, ps, appState] = await Promise.all([
-        iacApi('cuos:state'), iacApi('cuos:resources'), iacApi('ps'), iacApi('state'),
+      const [cuosState, resources, ps, appState, progress] = await Promise.all([
+        iacApi('cuos:state'), iacApi('cuos:resources'), iacApi('ps'), iacApi('state'), iacApi('progress'),
       ]);
       if (resources && typeof resources === 'object') {
         resources.ram_percent = Math.round((resources.mem_used_mb / resources.mem_total_mb) * 100);
         resources.disk_percent = Math.round((resources.disk_used_mb / resources.disk_total_mb) * 100);
       }
-      const payload = JSON.stringify({ cuosState, resources, ps, appState });
+      const payload = JSON.stringify({ cuosState, resources, ps, appState, progress });
       if (payload !== last) { last = payload; res.write(`data: ${payload}\n\n`); }
     } catch {}  // ponytail: socket errors silently dropped; client reconnects
   }
@@ -112,7 +112,7 @@ app.get('/api/logs/stream', (req, res) => {
 // Proxy actions to IaC socket
 const ALLOWED = new Set([
   'update', 'cuos:update', 'cuos:shutdown', 'cuos:reboot', 'cuos:rollback', 'config',
-  'docker:restart', 'docker:recreate', 'docker:stop', 'docker:start',
+  'docker:restart', 'docker:recreate', 'docker:stop', 'docker:start', 'dry-run',
 ]);
 app.post('/api/action', async (req, res) => {
   const { command, ...data } = req.body;

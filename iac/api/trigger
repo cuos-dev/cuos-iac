@@ -1,6 +1,18 @@
 #!/bin/bash
 
 SOCKET_PATH="/var/run/cuos.sock"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+CONFIG_PATH="/system.json"
+REPO_DIR="/volume/repo"
+PROJECT="${IAC_COMPOSE_PROJECT_NAME:-iac}"
+
+# Validate container belongs to the managed compose project; name must be safe chars only
+is_managed_container() {
+  local name="$1"
+  [[ "$name" =~ ^[a-zA-Z0-9._-]+$ ]] || return 1
+  docker ps -a --format '{{.Names}}' --filter "label=com.docker.compose.project=${PROJECT}" \
+    | grep -qxF "$name"
+}
 
 cuos_api() {
   local command="$1"
@@ -145,6 +157,88 @@ elif [[ "${COMMAND}" = "config" ]]; then
   echo "Error: iat outside allowed window" >&2
   echo "${now} - ${iat} = $(( now - iat ))"
   exit 7
+
+## progress           - Show current update progress as JSON array
+elif [[ "${COMMAND}" = "progress" ]]; then
+  if [[ -f /volume/progress.jsonl ]]; then
+    jq -s . /volume/progress.jsonl
+  else
+    echo '[]'
+  fi
+
+## docker:restart <name>   - Restart a managed container
+elif [[ "${COMMAND}" = "docker:restart" ]]; then
+  name="$(echo "${INPUT}" | jq -r '.name // empty')"
+  if ! is_managed_container "$name"; then
+    echo '{"error":"container not found in managed project"}'
+    exit 1
+  fi
+  docker restart "$name" >/dev/null && echo '{"result":"ok"}'
+
+## docker:stop <name>      - Stop a managed container
+elif [[ "${COMMAND}" = "docker:stop" ]]; then
+  name="$(echo "${INPUT}" | jq -r '.name // empty')"
+  if ! is_managed_container "$name"; then
+    echo '{"error":"container not found in managed project"}'
+    exit 1
+  fi
+  docker stop "$name" >/dev/null && echo '{"result":"ok"}'
+
+## docker:start <name>     - Start a managed container
+elif [[ "${COMMAND}" = "docker:start" ]]; then
+  name="$(echo "${INPUT}" | jq -r '.name // empty')"
+  if ! is_managed_container "$name"; then
+    echo '{"error":"container not found in managed project"}'
+    exit 1
+  fi
+  docker start "$name" >/dev/null && echo '{"result":"ok"}'
+
+## docker:recreate <name>  - Force-recreate the compose service for a managed container
+elif [[ "${COMMAND}" = "docker:recreate" ]]; then
+  name="$(echo "${INPUT}" | jq -r '.name // empty')"
+  if ! is_managed_container "$name"; then
+    echo '{"error":"container not found in managed project"}'
+    exit 1
+  fi
+  service="$(docker inspect "$name" --format '{{index .Config.Labels "com.docker.compose.service"}}' 2>/dev/null)"
+  if [[ -z "$service" ]]; then
+    echo '{"error":"could not determine service name from container labels"}'
+    exit 1
+  fi
+  REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "${CONFIG_PATH}" 2>/dev/null || echo '')"
+  compose_file="${REPO_DIR}${REPO_DIR_SUBDIR:+/$REPO_DIR_SUBDIR}/docker-compose.yml"
+  if [[ ! -f "$compose_file" ]]; then
+    echo '{"error":"compose file not found"}'
+    exit 1
+  fi
+  export COMPOSE_PROJECT_NAME="${PROJECT}"
+  "${SCRIPT_DIR}/docker-compose-host-paths.sh" -f "$compose_file" up -d --force-recreate "$service" \
+    && echo '{"result":"ok"}' || echo '{"error":"recreate failed"}'
+
+## dry-run             - Preview system.json changes without applying them
+elif [[ "${COMMAND}" = "dry-run" ]]; then
+  if [[ ! -d "${REPO_DIR}/.git" ]]; then
+    echo '{"error":"repo not cloned yet"}'
+    exit 1
+  fi
+  git -C "${REPO_DIR}" fetch --quiet 2>/dev/null || true
+  REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "${CONFIG_PATH}" 2>/dev/null || echo '')"
+  repo_system_json="${REPO_DIR}${REPO_DIR_SUBDIR:+/$REPO_DIR_SUBDIR}/system.json"
+  if [[ ! -f "$repo_system_json" ]]; then
+    echo '{"error":"no system.json in repo"}'
+    exit 1
+  fi
+  merged="$("${SCRIPT_DIR}/merge-configs.sh" "${repo_system_json}" 2>/dev/null)" || {
+    echo '{"error":"merge-configs failed"}'
+    exit 1
+  }
+  # ponytail: diff without system_file_password to avoid leaking it
+  diff_out="$(diff \
+    <(jq -S 'del(.system_file_password)' "${CONFIG_PATH}" 2>/dev/null || echo '{}') \
+    <(printf '%s' "$merged" | jq -S 'del(.system_file_password)') \
+    || true)"
+  printf '%s' "$merged" | jq --arg diff "$diff_out" \
+    '{has_changes: ($diff != ""), diff: $diff}'
 
 else
   echo "No valid command provided. Exiting."

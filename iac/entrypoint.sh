@@ -19,6 +19,12 @@ export DOCKER_CONTEXT=default
 
 DOCKERCOMPOSE="${SCRIPT_DIR}/docker-compose-host-paths.sh"
 MERGECONFIGS="${SCRIPT_DIR}/merge-configs.sh"
+PROGRESS_FILE="/volume/progress.jsonl"
+
+emit_progress() {
+  local step="$1" status="$2"
+  printf '%s\n' "$(jq -nc --arg step "$step" --arg status "$status" '{step:$step,status:$status,ts:(now|todate)}')" >> "${PROGRESS_FILE}"
+}
 
 set_error() {
   echo "Error: $*" >&2
@@ -354,19 +360,27 @@ counter=0
 
 perform_update() {
   set_state '.last_iac_update_check = (now | todate)'
+  > "${PROGRESS_FILE}"
 
+  emit_progress "clone_repo" "in_progress"
   clone_or_pull_repo
   state="$?"
   if [[ "${state}" == "1" ]]; then
+    emit_progress "clone_repo" "failed"
     report "Error: Could not clone/pull repo." >&2
     set_state '.iac_state = "pull repo failed"'
     return 1
   fi
+  emit_progress "clone_repo" "done"
+
+  emit_progress "verify_commit" "in_progress"
   if ! verify_commit; then
+    emit_progress "verify_commit" "failed"
     report "Error: Could not verify last commit. Skip applying changes." >&2
     set_state '.iac_state = "verification failed"'
     return 1
   fi
+  emit_progress "verify_commit" "done"
 
   REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")"
   if [ -n "$REPO_DIR_SUBDIR" ]; then
@@ -375,22 +389,36 @@ perform_update() {
 
   # repo has update / is new:
   if [[ "${state}" == "0" ]]; then
+    emit_progress "decrypt_files" "in_progress"
     decrypt_files
+    emit_progress "decrypt_files" "done"
 
+    emit_progress "apply_system_json" "in_progress"
     apply_system_json_if_changed
     local system_json_changed="$?"
     local failed=""
     # system json changed
     if [[ "${system_json_changed}" == "0" ]]; then
+      emit_progress "apply_system_json" "done"
+      emit_progress "docker_build" "in_progress"
       run_docker_compose_build || failed="docker build failed"
+      emit_progress "docker_build" "${failed:+failed}${failed:-done}"
+      emit_progress "docker_compose" "in_progress"
       # force-recreate, if CA certificates or similar changed
       run_docker_compose --force-recreate || failed="docker compose failed"
+      emit_progress "docker_compose" "${failed:+failed}${failed:-done}"
     # system json not changed
     elif [[ "${system_json_changed}" == "3" ]]; then
+      emit_progress "apply_system_json" "done"
+      emit_progress "docker_build" "in_progress"
       run_docker_compose_build || failed="docker build failed"
+      emit_progress "docker_build" "${failed:+failed}${failed:-done}"
+      emit_progress "docker_compose" "in_progress"
       run_docker_compose || failed="docker compose failed"
+      emit_progress "docker_compose" "${failed:+failed}${failed:-done}"
       # TODO: detect if bind mounts changed: restart containers
     else
+      emit_progress "apply_system_json" "failed"
       failed="applying system.json failed"
     fi
 
@@ -405,11 +433,14 @@ perform_update() {
       return 1
     fi
   else
+    emit_progress "docker_compose" "in_progress"
     # non tagged images may have changed:
     if ! run_docker_compose; then
+      emit_progress "docker_compose" "failed"
       set_state '.iac_state = "docker compose failed"'
       return 1
     fi
+    emit_progress "docker_compose" "done"
   fi
 
   set_state '.iac_state = "running"'

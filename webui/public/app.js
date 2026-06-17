@@ -131,6 +131,7 @@ function ContainerRow({ c }) {
       <td style="font-size:0.8em">${c.Networks}<br/><${Ports} ports=${c.Ports}/></td>
       <td style="white-space:nowrap;font-size:0.85em">
         <button class="btn-sm" onClick=${() => action('docker:restart')} title="Restart">↺</button>
+        <button class="btn-sm" onClick=${() => action('docker:recreate')} title="Force recreate">⬆</button>
         ${up
           ? html`<button class="btn-sm" onClick=${() => action('docker:stop')} title="Stop">■</button>`
           : html`<button class="btn-sm" onClick=${() => action('docker:start')} title="Start">▶</button>`}
@@ -184,20 +185,46 @@ function LogStream() {
   </div>`;
 }
 
-function Actions({ onAction, result, onClear }) {
+const STEP_LABELS = {
+  clone_repo:         'Pull repository',
+  verify_commit:      'Verify commit signature',
+  decrypt_files:      'Decrypt secrets',
+  apply_system_json:  'Apply system.json',
+  docker_build:       'Build images',
+  docker_compose:     'Start services',
+};
+
+function ProgressSteps({ steps }) {
+  if (!steps?.length) return null;
+  const STATUS_ICON = { done: '✓', in_progress: '→', failed: '✗' };
+  const STATUS_COLOR = { done: '#0a0', in_progress: '#fa0', failed: '#f44' };
+  return html`<div style="margin-top:1em;text-align:left;font-size:0.95em;font-family:monospace">
+    ${steps.map(s => html`
+      <div style="color:${STATUS_COLOR[s.status] || '#888'};padding:2px 0">
+        ${STATUS_ICON[s.status] || ' '} ${STEP_LABELS[s.step] || s.step}
+      </div>`)}
+  </div>`;
+}
+
+function Actions({ onAction, result, onClear, progress, iacState }) {
+  const updating = iacState === 'updating';
   return html`<div style="margin-top:1.5em">
-    <a class="action-btn" href="#containers">Containers</a>
-    <a class="action-btn" href="#system">System</a>
-    <a class="action-btn" href="#logs">Logs</a>
-    <a class="action-btn" href="#config">Config</a>
-    <br/>
-    <button class="action-btn" onClick=${() => onAction('update')}>Update IaC now</button>
-    <button class="action-btn" onClick=${() => confirm('Trigger system OS update?') && onAction('cuos:update')}>System Update</button>
-    <button class="action-btn" onClick=${() => confirm('Reboot?') && onAction('cuos:reboot')}>Reboot</button>
-    <button class="action-btn" onClick=${() => confirm('Shutdown?') && onAction('cuos:shutdown')}>Shutdown</button>
-    <button class="action-btn danger" onClick=${() => confirm('Rollback OS update?') && onAction('cuos:rollback')}>Rollback OS</button>
+    ${updating
+      ? html`<${ProgressSteps} steps=${progress}/>`
+      : html`
+        <a class="action-btn" href="#containers">Containers</a>
+        <a class="action-btn" href="#system">System</a>
+        <a class="action-btn" href="#logs">Logs</a>
+        <a class="action-btn" href="#config">Config</a>
+        <br/>
+        <button class="action-btn" onClick=${() => onAction('update')}>Update IaC now</button>
+        <button class="action-btn" onClick=${() => onAction('dry-run')}>Preview changes</button>
+        <button class="action-btn" onClick=${() => confirm('Trigger system OS update?') && onAction('cuos:update')}>System Update</button>
+        <button class="action-btn" onClick=${() => confirm('Reboot?') && onAction('cuos:reboot')}>Reboot</button>
+        <button class="action-btn" onClick=${() => confirm('Shutdown?') && onAction('cuos:shutdown')}>Shutdown</button>
+        <button class="action-btn danger" onClick=${() => confirm('Rollback OS update?') && onAction('cuos:rollback')}>Rollback OS</button>`}
     ${result && html`
-      <div style="margin-top:10px;padding:8px 12px;background:#1a1a1a;border:1px solid #444;border-radius:6px;font-size:0.9em;white-space:pre-wrap;max-width:600px">
+      <div style="margin-top:10px;padding:8px 12px;background:#1a1a1a;border:1px solid #444;border-radius:6px;font-size:0.9em;white-space:pre-wrap;max-width:600px;word-break:break-word">
         ${result} <button onClick=${onClear} style="margin-left:8px;background:none;border:none;color:#888;cursor:pointer">×</button>
       </div>`}
   </div>`;
@@ -218,7 +245,7 @@ function App() {
     } catch (e) { setActionResult(e.message); }
   }
 
-  const { cuosState, resources: r, ps, appState } = data || {};
+  const { cuosState, resources: r, ps, appState, progress } = data || {};
 
   return html`
     <div style="position:fixed;top:8px;right:12px;font-size:11px;z-index:100;color:${ok ? '#0a0' : '#c00'}">
@@ -231,7 +258,8 @@ function App() {
       <section class="snap-section dark" id="home">
         <h1>CuOS IaC</h1>
         <${Timer} appState=${appState}/>
-        <${Actions} onAction=${doAction} result=${actionResult} onClear=${() => setActionResult('')}/>
+        <${Actions} onAction=${doAction} result=${actionResult} onClear=${() => setActionResult('')}
+          progress=${progress} iacState=${appState?.iac_state}/>
       </section>
 
       <!-- 2. Containers -->
