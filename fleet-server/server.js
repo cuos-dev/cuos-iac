@@ -10,6 +10,7 @@ import fs from 'fs';
 import auth from 'basic-auth';
 import Handlebars from 'handlebars';
 import Database from 'better-sqlite3';
+import crypto from 'crypto';
 
 const locale = process.env.LOCALE || 'de-DE';
 const timeZone = process.env.TZ || 'Europe/Berlin';
@@ -24,6 +25,7 @@ Handlebars.registerHelper('formatDate', function(dateStr) {
 
 const PORT = process.env.FLEET_SERVER_PORT || 8085;
 const WS_SECRET = process.env.FLEET_SECRET || 'changeme';
+const UI_WS_NONCE = crypto.randomBytes(16).toString('hex'); // per-boot, injected into the page
 const DATA_DIR = process.env.FLEET_DATA_DIR || '/data';
 
 if (!fs.existsSync(DATA_DIR)) {
@@ -126,6 +128,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.engine('handlebars', engine());
 app.set('view engine', 'handlebars');
 app.set('views', path.join(__dirname, 'views'));
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Auth — Basic Auth for browser, Bearer token for automation (3.3)
 const ADMIN_USER = process.env.FLEET_ADMIN_USER || 'admin';
@@ -157,6 +160,27 @@ app.get('/api/clients', requireAuth, (req, res) => {
   res.json(Object.values(clients));
 });
 
+// Device detail + recent update events
+app.get('/api/clients/:id', requireAuth, (req, res) => {
+  const c = clients[req.params.id];
+  if (!c) return res.status(404).json({ error: 'not_found' });
+  const events = db.prepare('SELECT ts, phase, success, error FROM update_events WHERE device_id=? ORDER BY ts DESC LIMIT 20').all(req.params.id);
+  res.json({ ...c, recent_events: events });
+});
+
+// Bulk update trigger
+app.post('/api/bulk-update', requireAuth, (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids must be array' });
+  const triggered = [], offline = [];
+  for (const id of ids) {
+    const ws = wsConnections.get(id);
+    if (ws) { ws.send(JSON.stringify({ type: 'update_trigger', reason: 'manual' })); triggered.push(id); }
+    else offline.push(id);
+  }
+  res.json({ triggered, offline });
+});
+
 // Trigger update
 app.post('/api/clients/:id/update', requireAuth, (req, res) => {
   const id = req.params.id;
@@ -177,66 +201,34 @@ app.get('/api/clients/:id/direct', requireAuth, (req, res) => {
   res.json({ url });
 });
 
-function max(a, b) {
-  return a > b ? a : b;
-}
-
-// Simple Web UI
 app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
-app.get('/ui', requireAuth, (req, res) => {
-  const list = Object.values(clients).map(c => ({
-    id: c.id,
-    hostname: c.hostname || '-',
-    connection: c.status,
-    state: (c.metrics?.app_state?.iac_state !== "idle" ? c.metrics?.app_state?.iac_state : c.metrics?.state?.state),
-    last_update: max(c.metrics?.app_state?.last_iac_update, c.metrics?.state?.last_update_date),
-    metrics: c.metrics || { resources: {}, state: {} }
-  }));
-  res.render('clients', { clients: list });
-});
-function action(req) {
-  const id = req.body?.id;
-  if (!id) return {
-    'error': true,
-    'message': 'Error: No instance defined'
-  };
-  const c = clients[id];
-  if (!c) return {
-    'error': true,
-    'message': 'Error: Instance not found'
-  };
-  const ws = wsConnections.get(id);
-  if (!ws) return {
-    'error': true,
-    'message': 'Error: Instance offline'
-  };
-
-  const action = req.body?.action;
-  ws.send(JSON.stringify({ type: 'update_trigger', reason: 'manual' }));
-  return {
-    'message': 'Update triggered'
-  };
-}
-app.post('/action', requireAuth, (req, res) => {
-  res.render('action', { result: action(req) });
-});
+app.get('/ui', requireAuth, (req, res) => res.render('fleet', { wsNonce: UI_WS_NONCE }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 const wsConnections = new Map();
+const uiWss = new WebSocketServer({ noServer: true });
+const uiConnections = new Set();
+function broadcastState() {
+  if (!uiConnections.size) return;
+  const msg = JSON.stringify({ type: 'state', devices: Object.values(clients) });
+  for (const ws of uiConnections) { if (ws.readyState === 1) ws.send(msg); }
+}
 
 server.on('upgrade', (req, socket, head) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  // Path pattern: /ws/<secret>
-  const parts = url.pathname.split('/').filter(Boolean);
-  if (parts.length !== 2 || parts[0] !== 'ws' || parts[1] !== WS_SECRET) {
+  const parts = new URL(req.url, `http://${req.headers.host}`).pathname.split('/').filter(Boolean);
+  if (parts.length === 2 && parts[0] === 'ws' && parts[1] === WS_SECRET) {
+    wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+  } else if (parts.length === 2 && parts[0] === 'ui-ws' && parts[1] === UI_WS_NONCE) {
+    uiWss.handleUpgrade(req, socket, head, ws => {
+      uiConnections.add(ws);
+      ws.send(JSON.stringify({ type: 'state', devices: Object.values(clients) }));
+      ws.on('close', () => uiConnections.delete(ws));
+    });
+  } else {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
     socket.destroy();
-    return;
   }
-  wss.handleUpgrade(req, socket, head, (ws) => {
-    wss.emit('connection', ws, req);
-  });
 });
 
 wss.on('connection', (ws) => {
@@ -270,6 +262,7 @@ wss.on('connection', (ws) => {
       wsConnections.set(uuid, ws);
       ws.send(JSON.stringify({ type: 'server_welcome', server_time: now }));
       fireWebhook('device_online', clients[uuid]);
+      broadcastState();
     } else if (msg.type === 'heartbeat') {
       const { uuid } = msg;
       if (uuid && clients[uuid]) {
@@ -288,6 +281,7 @@ wss.on('connection', (ws) => {
         stmts.updateStatus.run({ status, lastUpdate, lastSeen: now, id: uuid });
         stmts.insertEvent.run({ deviceId: uuid, ts: now, phase, success: success ? 1 : 0, error: error || null });
         if (phase === 'finished') fireWebhook(success ? 'update_success' : 'update_failed', clients[uuid]);
+        broadcastState();
       }
     } else if (msg.type === 'metrics') {
       const { uuid, state, resources, app_state } = msg;
@@ -300,6 +294,7 @@ wss.on('connection', (ws) => {
         stmts.updateMetrics.run({ metrics: metricsJson, lastSeen: now, id: uuid });
         stmts.insertMetrics.run({ deviceId: uuid, collectedAt: now, metrics: metricsJson });
         stmts.pruneMetrics.run({ deviceId: uuid });
+        broadcastState();
       }
     }
   });
@@ -312,6 +307,7 @@ wss.on('connection', (ws) => {
           clients[id].status = 'offline';
           stmts.updateStatus.run({ status: 'offline', lastUpdate: null, lastSeen: now, id });
           fireWebhook('device_offline', clients[id]);
+          broadcastState();
         }
       }
     }

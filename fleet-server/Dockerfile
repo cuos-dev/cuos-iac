@@ -11,3 +11,4 @@ RUN apk add --no-cache python3 make g++ && npm install --omit=dev
 
 COPY server.js ./
 COPY views ./views/
+COPY public ./public/
