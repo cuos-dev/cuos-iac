@@ -1,5 +1,6 @@
-// ponytail: CDN Preact + htm, no build step
+// ponytail: CDN Preact + htm + uPlot, no build step
 import { html, render, useState, useEffect, useRef } from 'https://esm.sh/htm/preact/standalone';
+import uPlot from 'https://esm.sh/uplot';
 
 const NONCE  = window.__WS_NONCE__;
 const HAS_VM = !!window.__HAS_VM__;
@@ -33,19 +34,23 @@ function useFleet() {
   return { devices, ok };
 }
 
-// ponytail: hand-rolled SVG sparkline, no chart lib; add uPlot if you need zoom/hover
-function Sparkline({ values, color = '#0a0', width = 200, height = 40 }) {
+function UChart({ values, color = '#0a0', label = '' }) {
+  const el = useRef(null);
+  useEffect(() => {
+    if (!el.current) return;
+    if (!values?.length) return;
+    const times = values.map(([t]) => Number(t));
+    const vals  = values.map(([, v]) => parseFloat(v));
+    const u = new uPlot({
+      width: 240, height: 90,
+      cursor: { drag: { x: true, y: false } },
+      legend: { show: false },
+      series: [{}, { label, stroke: color, width: 1.5, fill: color + '28' }],
+    }, [times, vals], el.current);
+    return () => u.destroy();
+  }, [values]);
   if (!values?.length) return html`<span style="color:#999;font-size:11px">no data</span>`;
-  const nums = values.map(([, v]) => parseFloat(v));
-  const min = Math.min(...nums), range = (Math.max(...nums) - min) || 1;
-  const pts = nums.map((v, i) =>
-    `${(i / (nums.length - 1)) * width},${(height - 4) - ((v - min) / range) * (height - 8) + 2}`
-  ).join(' ');
-  const last = Math.round(nums.at(-1));
-  return html`<svg width=${width} height=${height} style="display:block;overflow:visible">
-    <polyline points=${pts} fill="none" stroke=${color} stroke-width="1.5" vector-effect="non-scaling-stroke"/>
-    <text x=${width + 4} y=${height - 2} font-size="10" fill="#666">${last}%</text>
-  </svg>`;
+  return html`<div ref=${el} />`;
 }
 
 function MetricsPanel({ deviceId }) {
@@ -56,53 +61,87 @@ function MetricsPanel({ deviceId }) {
     fetch(`/api/metrics/${deviceId}?range=${range}`).then(r => r.json()).then(setData).catch(() => setData([]));
   }, [deviceId, range]);
   const META = {
-    cuos_cpu_usage:    { label: 'CPU',  color: '#e67e22' },
-    cuos_ram_percent:  { label: 'RAM',  color: '#3498db' },
-    cuos_disk_percent: { label: 'Disk', color: '#9b59b6' },
+    cuos_cpu_usage:    { label: 'CPU %',  color: '#e67e22' },
+    cuos_ram_percent:  { label: 'RAM %',  color: '#3498db' },
+    cuos_disk_percent: { label: 'Disk %', color: '#9b59b6' },
   };
   return html`<div style="margin-top:12px">
     <b style="font-size:13px">Metrics history</b>
     ${['1h','24h','7d'].map(r => html`
       <button onClick=${() => setRange(r)}
-        style="margin-left:6px;font-size:11px;padding:1px 6px;${range===r ? 'font-weight:bold' : ''}">${r}</button>`)}
-    <div style="display:flex;gap:24px;margin-top:8px;flex-wrap:wrap">
+        style="margin-left:6px;font-size:11px;padding:1px 6px;${range===r ? 'font-weight:bold':''}">${r}</button>`)}
+    <div style="display:flex;gap:20px;margin-top:8px;flex-wrap:wrap;align-items:flex-start">
       ${data === null
         ? html`<span style="color:#999;font-size:12px">Loading…</span>`
         : (data || []).map(({ metric, values }) => html`
             <div>
               <div style="font-size:11px;color:#666;margin-bottom:3px">${META[metric]?.label || metric}</div>
-              <${Sparkline} values=${values} color=${META[metric]?.color} />
+              <${UChart} values=${values} color=${META[metric]?.color} label=${META[metric]?.label} />
             </div>`)}
     </div>
   </div>`;
 }
 
-function LogPanel({ device }) {
-  const [logs, setLogs] = useState(null);
-  const [q, setQ]       = useState('');
-  function load(query) {
-    setLogs(null);
+// ponytail: SSE poll every 3s, max 200 lines in memory; add WS if you need sub-second latency
+function LogStream({ device }) {
+  const [logs, setLogs]     = useState([]);
+  const [running, setRun]   = useState(false);
+  const [q, setQ]           = useState('');
+  const esRef               = useRef(null);
+  const bottomRef           = useRef(null);
+
+  function start(query) {
+    esRef.current?.close();
+    setLogs([]);
+    setRun(true);
     const qs = query ? `?q=${encodeURIComponent(query)}` : '';
-    fetch(`/api/logs/${device.id}${qs}`).then(r => r.json()).then(setLogs).catch(() => setLogs([]));
+    const es = new EventSource(`/api/logs/${device.id}/stream${qs}`);
+    esRef.current = es;
+    es.onmessage = e => {
+      const log = JSON.parse(e.data);
+      setLogs(prev => {
+        const next = [...prev, log];
+        return next.length > 200 ? next.slice(-200) : next; // ponytail: cap at 200
+      });
+    };
+    es.onerror = () => { setRun(false); es.close(); };
   }
-  useEffect(() => { load(''); }, [device.id]);
+
+  function stop() { esRef.current?.close(); setRun(false); }
+
+  useEffect(() => { start(''); return () => esRef.current?.close(); }, [device.id]);
+
+  // auto-scroll only when already at bottom
+  const boxRef = useRef(null);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (el && el.scrollHeight - el.scrollTop <= el.clientHeight + 60) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [logs]);
+
   return html`<div style="margin-top:12px">
     <b style="font-size:13px">Logs</b>
-    <input value=${q} onInput=${e => setQ(e.target.value)} onKeyDown=${e => e.key === 'Enter' && load(q)}
-      placeholder="LogsQL filter (Enter)…"
-      style="margin-left:8px;font-size:12px;padding:2px 6px;border:1px solid #ccc;border-radius:3px;width:200px"/>
-    <button onClick=${() => load(q)} style="margin-left:4px;font-size:12px;padding:1px 8px">Search</button>
-    <div style="font-family:monospace;font-size:11px;max-height:180px;overflow-y:auto;background:#1a1a1a;color:#ddd;padding:8px;margin-top:6px;border-radius:4px">
-      ${logs === null
-        ? 'Loading…'
-        : logs.length === 0
-          ? html`<span style="color:#555">No logs found.</span>`
-          : logs.map(l => html`
-              <div style="padding:1px 0;border-bottom:1px solid #2a2a2a">
-                <span style="color:#777">${(l._time || '').slice(0, 19).replace('T', ' ')}</span>
-                ${' '}<span style="color:#6af">[${l.unit || '?'}]</span>
-                ${' '}${l._msg}
-              </div>`)}
+    <span style="margin-left:8px;color:${running ? '#0a0' : '#999'};font-size:11px">${running ? '● live' : '○ stopped'}</span>
+    <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+      <input value=${q} onInput=${e => setQ(e.target.value)}
+        onKeyDown=${e => e.key === 'Enter' && start(q)}
+        placeholder="LogsQL filter (Enter to apply)…"
+        style="font-size:12px;padding:2px 6px;border:1px solid #ccc;border-radius:3px;width:220px"/>
+      ${running
+        ? html`<button onClick=${stop} style="font-size:12px;padding:1px 8px;color:#c00">■ Stop</button>`
+        : html`<button onClick=${() => start(q)} style="font-size:12px;padding:1px 8px">▶ Start</button>`}
+    </div>
+    <div ref=${boxRef} style="font-family:monospace;font-size:11px;max-height:200px;overflow-y:auto;background:#1a1a1a;color:#ddd;padding:8px;margin-top:6px;border-radius:4px">
+      ${logs.length === 0
+        ? html`<span style="color:#555">${running ? 'Waiting for logs…' : 'Stopped.'}</span>`
+        : logs.map((l, i) => html`
+            <div key=${i} style="padding:1px 0;border-bottom:1px solid #222">
+              <span style="color:#666">${(l._time||'').slice(0,19).replace('T',' ')}</span>
+              ${' '}<span style="color:#6af">[${l.unit||'?'}]</span>
+              ${' '}${l._msg}
+            </div>`)}
+      <div ref=${bottomRef}/>
     </div>
   </div>`;
 }
@@ -149,7 +188,7 @@ function Detail({ device }) {
         <a href="http://${device.hostname}:8030/" target="_blank" style="font-size:13px">Open device UI →</a>
       </div>
       ${HAS_VM && html`<${MetricsPanel} deviceId=${device.id} />`}
-      ${HAS_VL && html`<${LogPanel} device=${device} />`}
+      ${HAS_VL && html`<${LogStream} device=${device} />`}
     </td></tr>`;
 }
 

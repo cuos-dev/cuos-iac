@@ -209,6 +209,36 @@ app.get('/api/logs/:id', requireAuth, async (req, res) => {
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
+// Log tail stream via SSE — polls VL every 3s, advances cursor to avoid duplicates
+app.get('/api/logs/:id/stream', requireAuth, (req, res) => {
+  if (!FLEET_VL_URL) return res.status(503).end();
+  const c = clients[req.params.id];
+  if (!c) return res.status(404).end();
+  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+  res.flushHeaders();
+  const userFilter = req.query.q ? ` AND (${req.query.q})` : '';
+  const query = `hostname:${c.hostname}${userFilter}`;
+  let since = new Date(Date.now() - 60_000).toISOString();
+  async function poll() {
+    try {
+      const r = await fetch(`${FLEET_VL_URL}/select/logsql/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ query, limit: '200', start: since }),
+      });
+      const lines = (await r.text()).trim().split('\n').filter(Boolean);
+      const logs = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      if (logs.length) {
+        since = new Date(new Date(logs.at(-1)._time).getTime() + 1).toISOString();
+        for (const log of logs) res.write(`data: ${JSON.stringify(log)}\n\n`);
+      }
+    } catch {}
+  }
+  poll();
+  const timer = setInterval(poll, 3000);
+  req.on('close', () => clearInterval(timer));
+});
+
 // Bulk update trigger
 app.post('/api/bulk-update', requireAuth, (req, res) => {
   const { ids } = req.body;
