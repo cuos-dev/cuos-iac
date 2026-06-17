@@ -7,7 +7,7 @@ It is structured so that each section can be handed to an implementing agent ind
 - Git repository remains the single source of truth for all configuration
 - Fleet server stays read-only / monitoring-only; no config modification
 - All new components are optional and additive — existing setups keep working
-- Frontend framework: **no heavy frameworks** (no React, no Angular, no Next.js). Prefer Svelte/SvelteKit for interactive SPAs or htmx + Alpine.js for server-rendered progressive enhancement. Smallest possible runtime footprint.
+- Frontend framework: **Preact** (~3 KB) across all three frontend surfaces, with `@preact/signals` for reactivity and Preact Router for navigation. No React, Angular, Vue, Next.js, or SvelteKit.
 - All new services ship as Docker containers with a minimal Alpine-based image
 
 ---
@@ -463,13 +463,18 @@ This ensures visual consistency without tight coupling between the two projects.
 
 ### 9.2 Framework recommendation
 
-For all three frontend surfaces (per-device WebUI, fleet server WebUI, config webapp):
+**Decision: Preact across all three frontend surfaces.**
 
-- **Svelte** — recommended. Compiles to vanilla JS, no virtual DOM, tiny runtime, excellent for real-time/reactive UIs. SvelteKit adds routing and SSR if needed.
-- **htmx + Alpine.js** — alternative if keeping server-rendered approach. Good for the two WebUIs where the backend is already Node/Express. No build pipeline required.
-- **Avoid:** React, Vue, Angular, Ember — unnecessary bundle size and complexity for these use cases.
+[Preact](https://preactjs.com/) (~3 KB runtime) is used for the per-device WebUI, fleet server WebUI, and config webapp.
 
-The two WebUIs can share the same framework choice. The config webapp may benefit from SvelteKit for its multi-page structure (wizard flows, catalog browser, editor).
+Rationale:
+- Smallest React-compatible runtime available — negligible overhead
+- `@preact/signals` provides fine-grained reactivity ideal for live-updating metrics and log streams without full component re-renders
+- React ecosystem compatibility (`preact/compat`) gives access to libraries if needed
+- One framework across all three surfaces: single mental model, consistent build setup, contributors can move between codebases without context switching
+- Preact Router (~1.5 KB) handles the multi-page structure of the config webapp
+
+**Avoid:** React, Vue, Angular, SvelteKit — unnecessary bundle size or complexity for these use cases. SvelteKit in particular adds SSR/routing infrastructure that the existing Express backends already handle.
 
 ### 9.3 Consistent API patterns across WebUIs
 
