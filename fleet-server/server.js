@@ -25,7 +25,9 @@ Handlebars.registerHelper('formatDate', function(dateStr) {
 
 const PORT = process.env.FLEET_SERVER_PORT || 8085;
 const WS_SECRET = process.env.FLEET_SECRET || 'changeme';
-const UI_WS_NONCE = crypto.randomBytes(16).toString('hex'); // per-boot, injected into the page
+const UI_WS_NONCE  = crypto.randomBytes(16).toString('hex'); // per-boot, injected into the page
+const FLEET_VM_URL = process.env.FLEET_VM_URL; // VictoriaMetrics base, e.g. http://victoriametrics:8428
+const FLEET_VL_URL = process.env.FLEET_VL_URL; // VictoriaLogs base, e.g. http://victorialogs:9428
 const DATA_DIR = process.env.FLEET_DATA_DIR || '/data';
 
 if (!fs.existsSync(DATA_DIR)) {
@@ -168,6 +170,45 @@ app.get('/api/clients/:id', requireAuth, (req, res) => {
   res.json({ ...c, recent_events: events });
 });
 
+// Historical metrics proxy — 2.4 (requires FLEET_VM_URL)
+app.get('/api/metrics/:id', requireAuth, async (req, res) => {
+  if (!FLEET_VM_URL) return res.status(503).json({ error: 'not_configured' });
+  const c = clients[req.params.id];
+  if (!c) return res.status(404).json({ error: 'not_found' });
+  const ranges = { '1h': [3600, 60], '24h': [86400, 300], '7d': [604800, 3600] };
+  const [secs, step] = ranges[req.query.range] || ranges['1h'];
+  const end = Math.floor(Date.now() / 1000), start = end - secs;
+  try {
+    const results = await Promise.all(['cuos_cpu_usage', 'cuos_ram_percent', 'cuos_disk_percent'].map(async m => {
+      const qs = new URLSearchParams({ query: `${m}{uuid="${c.id}"}`, start, end, step });
+      const r = await fetch(`${FLEET_VM_URL}/api/v1/query_range?${qs}`).then(r => r.json());
+      return { metric: m, values: r?.data?.result?.[0]?.values || [] };
+    }));
+    res.json(results);
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+// Log query proxy — 2.5 (requires FLEET_VL_URL)
+app.get('/api/logs/:id', requireAuth, async (req, res) => {
+  if (!FLEET_VL_URL) return res.status(503).json({ error: 'not_configured' });
+  const c = clients[req.params.id];
+  if (!c) return res.status(404).json({ error: 'not_found' });
+  const base = `hostname:${c.hostname}`;
+  const q = req.query.q ? `${base} AND (${req.query.q})` : base;
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+  try {
+    const r = await fetch(`${FLEET_VL_URL}/select/logsql/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ query: q, limit: String(limit) }),
+    });
+    const text = await r.text();
+    const logs = text.trim().split('\n').filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    res.json(logs);
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
 // Bulk update trigger
 app.post('/api/bulk-update', requireAuth, (req, res) => {
   const { ids } = req.body;
@@ -202,7 +243,7 @@ app.get('/api/clients/:id/direct', requireAuth, (req, res) => {
 });
 
 app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
-app.get('/ui', requireAuth, (req, res) => res.render('fleet', { wsNonce: UI_WS_NONCE }));
+app.get('/ui', requireAuth, (req, res) => res.render('fleet', { wsNonce: UI_WS_NONCE, hasVM: !!FLEET_VM_URL, hasVL: !!FLEET_VL_URL }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
