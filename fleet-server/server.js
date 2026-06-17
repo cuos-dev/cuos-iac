@@ -127,16 +127,29 @@ app.engine('handlebars', engine());
 app.set('view engine', 'handlebars');
 app.set('views', path.join(__dirname, 'views'));
 
-// Basic Auth middleware (single admin user)
+// Auth — Basic Auth for browser, Bearer token for automation (3.3)
 const ADMIN_USER = process.env.FLEET_ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.FLEET_ADMIN_PASS || 'admin';
+const API_KEYS = new Set((process.env.FLEET_API_KEYS || '').split(',').filter(Boolean));
 function requireAuth(req, res, next) {
+  const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
+  if (bearer && API_KEYS.has(bearer[1])) return next();
   const creds = auth(req);
-  if (!creds || creds.name !== ADMIN_USER || creds.pass !== ADMIN_PASS) {
-    res.set('WWW-Authenticate', 'Basic realm="Fleet"');
-    return res.status(401).json({ error: 'unauthorized' });
-  }
-  next();
+  if (creds && creds.name === ADMIN_USER && creds.pass === ADMIN_PASS) return next();
+  res.set('WWW-Authenticate', 'Basic realm="Fleet"');
+  return res.status(401).json({ error: 'unauthorized' });
+}
+
+// Webhooks (3.2)
+const WEBHOOK_URL = process.env.FLEET_WEBHOOK_URL;
+const WEBHOOK_EVENTS = new Set((process.env.FLEET_WEBHOOK_EVENTS || 'device_online,device_offline,update_success,update_failed').split(',').filter(Boolean));
+function fireWebhook(event, device) {
+  if (!WEBHOOK_URL || !WEBHOOK_EVENTS.has(event)) return;
+  fetch(WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event, device: { id: device.id, hostname: device.hostname, tags: device.tags }, ts: new Date().toISOString() }),
+  }).catch(e => console.error(JSON.stringify({ level: 'error', msg: 'webhook failed', error: e.message })));
 }
 
 // List clients
@@ -256,6 +269,7 @@ wss.on('connection', (ws) => {
       });
       wsConnections.set(uuid, ws);
       ws.send(JSON.stringify({ type: 'server_welcome', server_time: now }));
+      fireWebhook('device_online', clients[uuid]);
     } else if (msg.type === 'heartbeat') {
       const { uuid } = msg;
       if (uuid && clients[uuid]) {
@@ -273,6 +287,7 @@ wss.on('connection', (ws) => {
         if (lastUpdate) clients[uuid].last_update = lastUpdate;
         stmts.updateStatus.run({ status, lastUpdate, lastSeen: now, id: uuid });
         stmts.insertEvent.run({ deviceId: uuid, ts: now, phase, success: success ? 1 : 0, error: error || null });
+        if (phase === 'finished') fireWebhook(success ? 'update_success' : 'update_failed', clients[uuid]);
       }
     } else if (msg.type === 'metrics') {
       const { uuid, state, resources, app_state } = msg;
@@ -296,6 +311,7 @@ wss.on('connection', (ws) => {
           const now = new Date().toISOString();
           clients[id].status = 'offline';
           stmts.updateStatus.run({ status: 'offline', lastUpdate: null, lastSeen: now, id });
+          fireWebhook('device_offline', clients[id]);
         }
       }
     }
