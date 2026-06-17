@@ -3,6 +3,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { WebSocket } from 'ws';
 import net from 'net';
+import { spawn } from 'child_process';
 
 // ---- Configuration Loading ----
 const SYSTEM_JSON = process.env.CUOS_SYSTEM_JSON || '/system.json';
@@ -27,6 +28,11 @@ const tags = systemConfig.fleet_tags || [];
 const repoUrl = systemConfig.iac_repo_url || '';
 const repoBranch = systemConfig.iac_repo_branch || 'main';
 const heartbeatIntervalSec = systemConfig.heartbeat_interval_sec || 30;
+// ponytail: these are read once; restart agent to pick up changes
+const hostname = systemConfig.hostname || systemConfig.system_name || systemConfig['iac_repo_subdir'] || 'unknown';
+const metricsIntervalSec = systemConfig.metrics_interval_sec || 60;
+const vmLogsUrl = systemConfig.victoria_logs_url;
+const logUnits  = systemConfig.fleet_log_units || [];
 
 if (!fleetServerUrl) {
   console.error('No fleet_server_url configured');
@@ -74,8 +80,7 @@ function connect() {
   console.log('Connecting to', wsUrl);
   ws = new WebSocket(wsUrl);
   ws.on('open', async () => {
-    backoffMs = 5000; // reset
-    const hostname = systemConfig.hostname || systemConfig.system_name || systemConfig["iac_repo_subdir"] || "unknown";
+    backoffMs = 5000;
     let cuosVersion = null;
     try { cuosVersion = await iacApi('cuos:version'); } catch {}
     ws.send(JSON.stringify({
@@ -112,8 +117,7 @@ function startHeartbeat() {
       ws.send(JSON.stringify({ type: 'heartbeat', uuid }));
     }
   }, heartbeatIntervalSec * 1000);
-  // Metrics push einmal pro Minute
-  metricsTimer = setInterval(collectAndSendMetrics, 60 * 1000);
+  metricsTimer = setInterval(collectAndSendMetrics, metricsIntervalSec * 1000);
   // Sofort initial einmal senden
   collectAndSendMetrics();
 }
@@ -205,7 +209,75 @@ async function collectAndSendMetrics() {
   } catch (e) {
     console.error('Failed to send metrics', e.message);
   }
+  // 4.1 push to VictoriaMetrics if configured
+  const vmUrl = systemConfig.victoria_metrics_url;
+  if (vmUrl) pushMetricsToVM(vmUrl, resourcesData);
+}
+
+// 4.1 VictoriaMetrics push (Prometheus text format)
+function pushMetricsToVM(vmUrl, resources) {
+  const labels = `hostname="${hostname}",uuid="${uuid}"${tags.length ? `,tags="${tags.join(',')}"` : ''}`;
+  const ts = Date.now();
+  const body = [
+    ['cuos_cpu_usage',     resources.cpu_usage],
+    ['cuos_ram_percent',   resources.ram_percent],
+    ['cuos_disk_percent',  resources.disk_percent],
+    ['cuos_mem_used_mb',   resources.mem_used_mb],
+    ['cuos_mem_total_mb',  resources.mem_total_mb],
+    ['cuos_disk_used_mb',  resources.disk_used_mb],
+    ['cuos_disk_total_mb', resources.disk_total_mb],
+  ].filter(([, v]) => v != null)
+   .map(([n, v]) => `${n}{${labels}} ${v} ${ts}`)
+   .join('\n');
+  if (!body) return;
+  fetch(vmUrl, { method: 'POST', body })
+    .catch(e => console.error('VictoriaMetrics push failed:', e.message));
+}
+
+// 4.2 VictoriaLogs log forwarding via journalctl
+function startLogForwarding(logsUrl, units) {
+  let proc;
+  try {
+    proc = spawn('journalctl', ['-f', '-n', '0', '--output=json', ...units.flatMap(u => ['-u', u])]);
+  } catch {
+    console.error('journalctl unavailable, log forwarding disabled');
+    return;
+  }
+  const buf = [];
+  const flush = setInterval(() => {
+    if (!buf.length) return;
+    const body = buf.splice(0).join('\n');
+    fetch(logsUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-ndjson' }, body })
+      .catch(e => console.error('VictoriaLogs push failed:', e.message));
+  }, 5000);
+  let partial = '';
+  proc.stdout.on('data', chunk => {
+    const lines = (partial + chunk).split('\n');
+    partial = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const e = JSON.parse(line);
+        buf.push(JSON.stringify({
+          _time: e.__REALTIME_TIMESTAMP
+            ? new Date(Number(e.__REALTIME_TIMESTAMP) / 1000).toISOString()
+            : new Date().toISOString(),
+          _msg: String(e.MESSAGE || ''),
+          hostname,
+          unit: e._SYSTEMD_UNIT || e.SYSLOG_IDENTIFIER || '',
+          priority: e.PRIORITY,
+        }));
+      } catch {}
+    }
+  });
+  proc.on('error', () => {});
+  proc.on('close', () => {
+    clearInterval(flush);
+    console.log('journalctl exited, restarting log forwarding in 10s');
+    setTimeout(() => startLogForwarding(logsUrl, units), 10000);
+  });
 }
 
 connect();
+if (vmLogsUrl && logUnits.length) startLogForwarding(vmLogsUrl, logUnits);
 
