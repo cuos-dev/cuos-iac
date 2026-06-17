@@ -7,6 +7,7 @@ ENV FLEET_SERVER_PORT=8085
 CMD ["npm","start"]
 
 COPY package*.json ./
-RUN npm install --omit=dev || npm install --omit=dev
+RUN apk add --no-cache python3 make g++ && npm install --omit=dev
 
 COPY server.js ./
+COPY views ./views/
