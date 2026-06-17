@@ -1,0 +1,59 @@
+site_name: CuOS IaC
+site_description: Git-driven Infrastructure-as-Code manager for CuOS and standalone Docker hosts
+site_url: https://cuos-dev.github.io/cuos-iac/
+repo_url: https://github.com/cuos-dev/cuos-iac
+repo_name: cuos-dev/cuos-iac
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Components: components.md
+  - Getting Started: getting-started.md
+  - Core IaC:
+    - Configuration: configuration.md
+    - Security: security.md
+    - Architecture: architecture.md
+    - API Reference: api.md
+    - Standalone Usage: standalone.md
+  - Fleet:
+    - Fleet Server: fleet-server.md
+    - Fleet Agent: fleet-agent.md
+  - Troubleshooting: troubleshooting.md
