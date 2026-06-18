@@ -1,0 +1,8 @@
+{
+  "name": "fleet-server-webui",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite", "build": "vite build" },
+  "dependencies": { "preact": "^10", "uplot": "^1" },
+  "devDependencies": { "@preact/preset-vite": "^2", "vite": "^6" }
+}
