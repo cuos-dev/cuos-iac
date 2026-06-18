@@ -72,8 +72,7 @@ elif [[ "${COMMAND}" = "update" ]]; then
 
 ## ps                 - Show docker ps as JSON
 elif [[ "${COMMAND}" = "ps" ]]; then
-	docker ps -a --format '{{json .}}' | jq -s .
-	#COMPOSE_PROJECT_NAME="iac" docker-compose -f /volume/repo/docker-compose.yml ps --format '{{json .}}'
+	docker ps -a --size --format '{{json .}}' | jq -s .
 
 ## state              - Provide IaC state
 elif [[ "${COMMAND}" = "state" ]]; then
@@ -214,6 +213,40 @@ elif [[ "${COMMAND}" = "docker:recreate" ]]; then
   export COMPOSE_PROJECT_NAME="${PROJECT}"
   "${SCRIPT_DIR}/docker-compose-host-paths.sh" -f "$compose_file" up -d --force-recreate "$service" \
     && echo '{"result":"ok"}' || echo '{"error":"recreate failed"}'
+
+## docker:version      - Return Docker daemon version
+elif [[ "${COMMAND}" = "docker:version" ]]; then
+  docker version --format '{{json .Server}}' | jq '{version: .Version, api: .APIVersion}'
+
+## docker:logs <name> [lines]  - Tail logs of a managed container
+elif [[ "${COMMAND}" = "docker:logs" ]]; then
+  name="$(echo "${INPUT}" | jq -r '.name // empty')"
+  lines="$(echo "${INPUT}" | jq -r '.lines // 100')"
+  [[ "$lines" =~ ^[0-9]+$ ]] || lines=100
+  if ! is_managed_container "$name"; then
+    echo '{"error":"container not found in managed project"}'
+    exit 1
+  fi
+  docker logs --tail "$lines" "$name" 2>&1 | jq -Rs '{lines: split("\n") | map(select(. != ""))}'
+
+## docker:remove <name>  - Remove a managed container (force)
+elif [[ "${COMMAND}" = "docker:remove" ]]; then
+  name="$(echo "${INPUT}" | jq -r '.name // empty')"
+  if ! is_managed_container "$name"; then
+    echo '{"error":"container not found in managed project"}'
+    exit 1
+  fi
+  docker rm -f "$name" >/dev/null && echo '{"result":"ok"}'
+
+## compose:file          - Return contents of the current docker-compose.yml
+elif [[ "${COMMAND}" = "compose:file" ]]; then
+  REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "${CONFIG_PATH}" 2>/dev/null || echo '')"
+  compose_file="${REPO_DIR}${REPO_DIR_SUBDIR:+/$REPO_DIR_SUBDIR}/docker-compose.yml"
+  if [[ ! -f "$compose_file" ]]; then
+    echo '{"error":"compose file not found"}'
+    exit 1
+  fi
+  jq -Rs '{content: .}' "$compose_file"
 
 ## dry-run             - Preview system.json changes without applying them
 elif [[ "${COMMAND}" = "dry-run" ]]; then

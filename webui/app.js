@@ -113,6 +113,7 @@ app.get('/api/logs/stream', (req, res) => {
 const ALLOWED = new Set([
   'update', 'cuos:update', 'cuos:shutdown', 'cuos:reboot', 'cuos:rollback', 'config',
   'docker:restart', 'docker:recreate', 'docker:stop', 'docker:start', 'dry-run',
+  'docker:logs', 'docker:remove', 'docker:version', 'compose:file',
 ]);
 app.post('/api/action', async (req, res) => {
   const { command, ...data } = req.body;
