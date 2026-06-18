@@ -78,22 +78,7 @@ body {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 1100px) {
-  .col-agent, .col-iac { display: none; }
-}
-@media (max-width: 768px) {
-  .summary-row { grid-template-columns: repeat(3, 1fr); }
-  .col-cpu { display: none; }
-  .main { padding: 16px; }
-  .detail-grid { grid-template-columns: 1fr 1fr; }
-  .search-box input { width: 130px; }
-}
-@media (max-width: 480px) {
-  .summary-row { grid-template-columns: repeat(2, 1fr); }
-  .col-ip, .col-uptime { display: none; }
-  .topbar { padding: 0 14px; }
-  .topbar-stats { gap: 12px; }
-  .topbar-stat-val { font-size: 14px; }
-  .detail-grid { grid-template-columns: 1fr; }
-}
+@media (max-width: 1100px) { .col-agent, .col-iac { display: none; } }
+@media (max-width: 768px)  { .col-cpu { display: none; } .main { padding: 16px; } }
+@media (max-width: 480px)  { .col-ip, .col-uptime { display: none; } }
 .spin { display: inline-block; animation: spin 1s linear infinite; }
