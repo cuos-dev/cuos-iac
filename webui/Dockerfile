@@ -1,11 +1,16 @@
-FROM node:25.9.0-alpine3.22
-
+FROM node:22-alpine AS build
 WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY index.html vite.config.js ./
+COPY src/ src/
+RUN npm run build
+
+FROM node:22-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY --from=build /app/dist ./dist
+COPY app.js ./
 EXPOSE 3000
 CMD ["node", "app.js"]
-
-COPY package*.json ./
-RUN npm install --omit=dev || npm install --omit=dev
-
-COPY . .
-
