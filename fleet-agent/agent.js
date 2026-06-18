@@ -1,9 +1,12 @@
 // Fleet Agent MVP
 import fs from 'fs';
+import os from 'os';
 import crypto from 'crypto';
 import { WebSocket } from 'ws';
 import net from 'net';
 import { spawn } from 'child_process';
+import { createRequire } from 'module';
+const agentVersion = createRequire(import.meta.url)('./package.json').version;
 
 // ---- Configuration Loading ----
 const SYSTEM_JSON = process.env.CUOS_SYSTEM_JSON || '/system.json';
@@ -88,6 +91,7 @@ function connect() {
       uuid,
       hostname,
       cuos_version: cuosVersion,
+      agent_version: agentVersion,
       tags,
       repo_url: repoUrl,
       repo_branch: repoBranch,
@@ -193,6 +197,7 @@ async function collectAndSendMetrics() {
       disk_percent: resourcesData.disk_percent,
       disk_used_mb: resourcesData.disk_used_mb,
       disk_total_mb: resourcesData.disk_total_mb,
+      uptime_seconds: Math.floor(os.uptime()),
       virt_type: resourcesData.virt_type,
       network: resourcesData.network,
       default_route_ip: resourcesData.default_route_ip,
