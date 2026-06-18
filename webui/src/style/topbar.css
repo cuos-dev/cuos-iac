@@ -1,0 +1,33 @@
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-brand {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 15px; font-weight: 600; color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.brand-icon {
+  width: 28px; height: 28px;
+  background: var(--accent); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 15px;
+}
+.topbar-host { color: var(--text-muted); font-weight: 400; font-size: 13px; }
+.topbar-meta {
+  display: flex; align-items: center; gap: 20px;
+  font-size: 13px; color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green-400);
+  display: inline-block; margin-right: 5px;
+}
+.status-dot.grey { background: var(--slate-400); }
+.status-dot.warn { background: var(--amber-400); }
+.status-dot.err  { background: var(--red-400); }

@@ -1,0 +1,74 @@
+.containers-panel { grid-column: 1 / 2; grid-row: 2 / 3; }
+
+.container-table { width: 100%; border-collapse: collapse; }
+.container-table th {
+  text-align: left;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 0 12px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.container-table tbody tr {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.container-table tbody tr:hover > td { background: var(--slate-50); }
+.container-table tbody tr.expanded > td { background: var(--accent-light); }
+.container-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  transition: background 0.1s;
+}
+.container-table tr:last-child td { border-bottom: none; }
+
+.ct-name {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+  color: var(--text-primary);
+}
+.ct-image {
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ct-size { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.ct-chevron {
+  color: var(--text-muted); font-size: 15px;
+  transition: transform 0.2s;
+}
+.ct-chevron.rotated { transform: rotate(180deg); }
+
+.expand-row td {
+  padding: 0;
+  background: var(--accent-light) !important;
+  border-bottom: 1px solid var(--blue-100);
+}
+.expand-content {
+  padding: 14px 24px 16px 36px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.expand-group label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--blue-600);
+  display: block; margin-bottom: 4px;
+}
+.expand-group .val {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--blue-800); line-height: 1.6;
+}
+.expand-group .val a {
+  color: var(--blue-600); text-decoration: none;
+}
+.expand-group .val a:hover { text-decoration: underline; }
+
+.expand-actions {
+  display: flex; gap: 8px; align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.row-msg {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-muted); margin-right: auto;
+}
