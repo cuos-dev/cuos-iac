@@ -66,25 +66,25 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta }) {
             ? <span class={`version-chip ${isOutdated(d.cuos_version, latestCuos) ? 'outdated' : ''}`}>{d.cuos_version}</span>
             : <span class="muted">—</span>}
         </td>
-        <td>
+        <td class="col-agent">
           {d.agent_version
             ? <span class={`version-chip ${isOutdated(d.agent_version, latestAgent) ? 'outdated' : ''}`}>{d.agent_version}</span>
             : <span class="muted">—</span>}
         </td>
-        <td><span class="mono">{r.default_route_ip || '—'}</span></td>
-        <td>
+        <td class="col-ip"><span class="mono">{r.default_route_ip || '—'}</span></td>
+        <td class="col-iac">
           {as.iac_state
             ? <span class={`badge ${iacCls}`}>{as.iac_state}</span>
             : <span class="muted">—</span>}
         </td>
-        <td>
+        <td class="col-cpu">
           <div class="mini-bars">
             <MiniBar val={r.cpu_usage}    label="CPU" />
             <MiniBar val={r.ram_percent}  label="RAM" />
             <MiniBar val={r.disk_percent} label="Disk" />
           </div>
         </td>
-        <td><span class="muted">{fmt.uptime(r.uptime_seconds)}</span></td>
+        <td class="col-uptime"><span class="muted">{fmt.uptime(r.uptime_seconds)}</span></td>
         <td><span class={`last-seen ${fmt.lastSeenClass(d.last_seen)}`}>{fmt.relative(d.last_seen)}</span></td>
         <td onClick={e => e.stopPropagation()}>
           <div class="action-cell">
