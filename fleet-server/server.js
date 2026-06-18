@@ -1,30 +1,18 @@
-// Fleet Server MVP
+// Fleet Server
 import express from 'express';
-import { engine } from 'express-handlebars';
-import bodyParser from 'body-parser';
 import path from 'path';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import auth from 'basic-auth';
-import Handlebars from 'handlebars';
 import Database from 'better-sqlite3';
 import crypto from 'crypto';
 
-const locale = process.env.LOCALE || 'de-DE';
-const timeZone = process.env.TZ || 'Europe/Berlin';
-
-Handlebars.registerHelper('formatDate', function(dateStr) {
-  if (!dateStr) return '';
-  if (!dateStr.match(/Z$/)) dateStr = dateStr+"Z";
-  const d = new Date(dateStr);
-  if (isNaN(d)) return dateStr;
-  return d.toLocaleString(locale, { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '');
-});
-
-const PORT = process.env.FLEET_SERVER_PORT || 8085;
-const WS_SECRET = process.env.FLEET_SECRET || 'changeme';
+const PORT          = process.env.FLEET_SERVER_PORT  || 8085;
+const WS_SECRET     = process.env.FLEET_SECRET       || 'changeme';
+const LATEST_CUOS   = process.env.FLEET_LATEST_CUOS  || null;
+const LATEST_AGENT  = process.env.FLEET_LATEST_AGENT || null;
 const UI_WS_NONCE  = crypto.randomBytes(16).toString('hex'); // per-boot, injected into the page
 const FLEET_VM_URL = process.env.FLEET_VM_URL; // VictoriaMetrics base, e.g. http://victoriametrics:8428
 const FLEET_VL_URL = process.env.FLEET_VL_URL; // VictoriaLogs base, e.g. http://victorialogs:9428
@@ -41,6 +29,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     hostname TEXT,
     cuos_version TEXT,
+    agent_version TEXT,
     tags TEXT,
     repo_url TEXT,
     repo_branch TEXT,
@@ -68,13 +57,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_mh_device ON metrics_history(device_id, collected_at);
   CREATE INDEX IF NOT EXISTS idx_ue_device ON update_events(device_id, ts);
 `);
+// ponytail: migrate existing DBs; ignore error if column already exists
+try { db.exec(`ALTER TABLE devices ADD COLUMN agent_version TEXT`); } catch {}
 
 const stmts = {
   upsertDevice: db.prepare(`
-    INSERT INTO devices (id, hostname, cuos_version, tags, repo_url, repo_branch, protocol_version, status, connected_at, last_seen, last_update, metrics)
-    VALUES (@id, @hostname, @cuosVersion, @tags, @repoUrl, @repoBranch, @protocolVersion, @status, @connectedAt, @lastSeen, @lastUpdate, @metrics)
+    INSERT INTO devices (id, hostname, cuos_version, agent_version, tags, repo_url, repo_branch, protocol_version, status, connected_at, last_seen, last_update, metrics)
+    VALUES (@id, @hostname, @cuosVersion, @agentVersion, @tags, @repoUrl, @repoBranch, @protocolVersion, @status, @connectedAt, @lastSeen, @lastUpdate, @metrics)
     ON CONFLICT(id) DO UPDATE SET
-      hostname=excluded.hostname, cuos_version=excluded.cuos_version, tags=excluded.tags,
+      hostname=excluded.hostname, cuos_version=excluded.cuos_version, agent_version=excluded.agent_version, tags=excluded.tags,
       repo_url=excluded.repo_url, repo_branch=excluded.repo_branch,
       protocol_version=excluded.protocol_version, status=excluded.status,
       connected_at=excluded.connected_at, last_seen=excluded.last_seen,
@@ -127,10 +118,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-app.engine('handlebars', engine());
-app.set('view engine', 'handlebars');
-app.set('views', path.join(__dirname, 'views'));
-app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use('/ui', express.static(path.join(__dirname, 'webui/dist')));
 
 // Auth — Basic Auth for browser, Bearer token for automation (3.3)
 const ADMIN_USER = process.env.FLEET_ADMIN_USER || 'admin';
@@ -272,8 +260,9 @@ app.get('/api/clients/:id/direct', requireAuth, (req, res) => {
   res.json({ url });
 });
 
+app.get('/api/meta', requireAuth, (req, res) => res.json({ wsNonce: UI_WS_NONCE, hasVm: !!FLEET_VM_URL, hasVl: !!FLEET_VL_URL }));
 app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
-app.get('/ui', requireAuth, (req, res) => res.render('fleet', { wsNonce: UI_WS_NONCE, hasVM: !!FLEET_VM_URL, hasVL: !!FLEET_VL_URL }));
+app.get('/ui/*', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'webui/dist/index.html')));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -282,7 +271,7 @@ const uiWss = new WebSocketServer({ noServer: true });
 const uiConnections = new Set();
 function broadcastState() {
   if (!uiConnections.size) return;
-  const msg = JSON.stringify({ type: 'state', devices: Object.values(clients) });
+  const msg = JSON.stringify({ type: 'state', devices: Object.values(clients), config: { latestCuos: LATEST_CUOS, latestAgent: LATEST_AGENT } });
   for (const ws of uiConnections) { if (ws.readyState === 1) ws.send(msg); }
 }
 
@@ -293,7 +282,7 @@ server.on('upgrade', (req, socket, head) => {
   } else if (parts.length === 2 && parts[0] === 'ui-ws' && parts[1] === UI_WS_NONCE) {
     uiWss.handleUpgrade(req, socket, head, ws => {
       uiConnections.add(ws);
-      ws.send(JSON.stringify({ type: 'state', devices: Object.values(clients) }));
+      ws.send(JSON.stringify({ type: 'state', devices: Object.values(clients), config: { latestCuos: LATEST_CUOS, latestAgent: LATEST_AGENT } }));
       ws.on('close', () => uiConnections.delete(ws));
     });
   } else {
@@ -311,6 +300,7 @@ wss.on('connection', (ws) => {
         uuid,
         hostname,
         cuos_version,
+        agent_version,
         tags = [],
         repo_url,
         repo_branch,
@@ -319,13 +309,13 @@ wss.on('connection', (ws) => {
       if (!uuid || typeof uuid !== 'string') return;
       const now = new Date().toISOString();
       clients[uuid] = {
-        id: uuid, hostname, cuos_version, tags, repo_url, repo_branch, protocol_version,
+        id: uuid, hostname, cuos_version, agent_version, tags, repo_url, repo_branch, protocol_version,
         last_update: clients[uuid]?.last_update || null,
         connected_at: now, last_seen: now, status: 'online',
         metrics: clients[uuid]?.metrics || null,
       };
       stmts.upsertDevice.run({
-        id: uuid, hostname, cuosVersion: cuos_version,
+        id: uuid, hostname, cuosVersion: cuos_version, agentVersion: agent_version || null,
         tags: JSON.stringify(tags), repoUrl: repo_url, repoBranch: repo_branch,
         protocolVersion: protocol_version, status: 'online',
         connectedAt: now, lastSeen: now, lastUpdate: null, metrics: null,
