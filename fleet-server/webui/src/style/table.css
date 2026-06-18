@@ -86,3 +86,6 @@
 }
 .page-btn:hover  { background: var(--teal-50); color: var(--teal-600); border-color: var(--teal-100); }
 .page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+@media (max-width: 768px) { .search-box input { width: 130px; } }
+@media (max-width: 480px) { .search-box input { width: 90px; } }

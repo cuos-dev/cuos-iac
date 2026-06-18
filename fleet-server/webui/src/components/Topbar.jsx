@@ -30,8 +30,8 @@ export function Topbar({ online, offline, outdated, ok }) {
         <Stat val={offline}  label="offline" />
         <div class="topbar-divider" />
         <Stat val={outdated} label="outdated" />
-        <div class="topbar-divider" />
-        <div class="topbar-stat">
+        <div class="topbar-divider topbar-clock" />
+        <div class="topbar-stat topbar-clock">
           <div class="topbar-stat-val">{now}</div>
           <div class="topbar-stat-label">server time</div>
         </div>
