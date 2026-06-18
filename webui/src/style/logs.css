@@ -1,0 +1,62 @@
+.logs-panel {
+  grid-column: 1 / 2; grid-row: 3 / 4;
+  display: flex; flex-direction: column;
+  min-height: 280px;
+}
+
+.logs-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.logs-filter-btn {
+  padding: 4px 10px; border-radius: 100px;
+  font-size: 12px; font-weight: 500;
+  cursor: pointer; border: 1px solid transparent;
+  background: transparent; color: var(--text-muted);
+  transition: all 0.12s;
+}
+.logs-filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.logs-filter-btn:not(.active):hover { background: var(--slate-100); color: var(--text-primary); }
+.logs-search {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px;
+}
+.logs-search i { font-size: 14px; color: var(--text-muted); }
+.logs-search input {
+  border: none; background: transparent; outline: none;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-primary); width: 140px;
+}
+.logs-body {
+  padding: 12px 18px;
+  overflow-y: auto;
+  flex: 1;
+  max-height: 320px;
+}
+.log-entry {
+  display: flex; gap: 12px; align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono); font-size: 12px;
+  line-height: 1.5;
+}
+.log-entry:last-child { border-bottom: none; }
+.log-ts { color: var(--text-muted); flex-shrink: 0; width: 88px; }
+.log-src {
+  flex-shrink: 0; width: 58px;
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  padding: 1px 5px; border-radius: 3px; align-self: center;
+}
+.src-os  { background: var(--blue-50);  color: var(--blue-600); }
+.src-iac { background: var(--green-50); color: var(--green-600); }
+.log-level {
+  flex-shrink: 0; width: 44px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+}
+.lvl-info { color: var(--blue-400); }
+.lvl-warn { color: var(--amber-400); }
+.lvl-err  { color: var(--red-400); }
+.log-msg { color: var(--text-secondary); flex: 1; }
