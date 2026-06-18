@@ -55,11 +55,11 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, filter, se
               <th style="width:200px">Device</th>
               <th style="width:90px">Status</th>
               <th style="width:95px">CuOS ver.</th>
-              <th style="width:95px">Agent ver.</th>
-              <th style="width:115px">IP address</th>
-              <th style="width:95px">IaC state</th>
-              <th style="width:135px">CPU / RAM / Disk</th>
-              <th style="width:80px">Uptime</th>
+              <th style="width:95px" class="col-agent">Agent ver.</th>
+              <th style="width:115px" class="col-ip">IP address</th>
+              <th style="width:95px" class="col-iac">IaC state</th>
+              <th style="width:135px" class="col-cpu">CPU / RAM / Disk</th>
+              <th style="width:80px" class="col-uptime">Uptime</th>
               <th style="width:90px">Last seen</th>
               <th style="width:145px">Actions</th>
             </tr>
