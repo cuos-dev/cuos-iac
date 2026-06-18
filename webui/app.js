@@ -24,7 +24,7 @@ try {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'dist')));
 
 function checkCreds(user) {
   if (!user || user.name !== USER) return false;
@@ -137,21 +137,7 @@ const ALLOWED = new Set([
   'docker:logs', 'docker:remove', 'docker:version', 'compose:file',
 ]);
 
-// SPA shell — replaced by dist/ in Phase 3
-const SPA = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CuOS IaC</title>
-  <link rel="stylesheet" href="/public/style.css">
-</head>
-<body><div id="app"></div>
-<script type="module" src="/public/app.js"></script>
-</body>
-</html>`;
-
-app.get('/', (req, res) => res.send(SPA));
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 
 // --- server + WebSocket ---
 
