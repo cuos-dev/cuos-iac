@@ -1,0 +1,88 @@
+.table-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
+}
+.table-toolbar {
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.toolbar-title {
+  font-size: 13px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 7px;
+}
+.toolbar-title i { font-size: 15px; }
+
+.filter-tabs  { display: flex; gap: 4px; }
+.ftab {
+  padding: 5px 12px; border-radius: 100px; font-size: 12px; font-weight: 500;
+  cursor: pointer; border: 1px solid transparent;
+  background: transparent; color: var(--text-muted);
+  transition: all 0.12s; font-family: var(--font-sans);
+}
+.ftab.active            { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ftab:not(.active):hover { background: var(--teal-50); color: var(--teal-600); }
+
+.search-box {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 7px; padding: 6px 12px; margin-left: auto;
+}
+.search-box i { font-size: 14px; color: var(--text-muted); }
+.search-box input {
+  border: none; background: transparent; outline: none;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-primary); width: 200px;
+}
+
+.fleet-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.fleet-table th {
+  text-align: left; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  background: var(--surface-2); white-space: nowrap;
+}
+.fleet-table td {
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  vertical-align: middle; font-size: 13px;
+}
+.fleet-table tr:last-child td { border-bottom: none; }
+.fleet-table tbody tr.device-row:hover td { background: var(--teal-50); }
+
+.device-cell  { display: flex; align-items: center; gap: 10px; }
+.device-dot   { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-online   { background: var(--teal-400); }
+.dot-offline  { background: var(--gray-400); }
+.dot-warn     { background: var(--amber-400); }
+.device-name  { font-weight: 500; font-size: 13px; color: var(--text-primary); }
+.device-id    { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+.mini-bars { display: flex; flex-direction: column; gap: 3px; }
+.mini-bar-cell { display: flex; align-items: center; gap: 5px; }
+.mini-bar-label { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); width: 30px; text-align: right; }
+.mini-bar-track { flex: 1; height: 3px; background: var(--gray-100); border-radius: 2px; overflow: hidden; }
+.mini-bar-fill  { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+.last-seen        { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.last-seen.recent { color: var(--teal-600); }
+.last-seen.stale  { color: var(--amber-600); }
+.last-seen.dead   { color: var(--red-400); }
+
+.action-cell { display: flex; gap: 6px; align-items: center; }
+.empty-row   { text-align: center; padding: 32px !important; color: var(--text-muted); }
+
+.pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--text-muted);
+}
+.page-btns { display: flex; gap: 4px; }
+.page-btn {
+  width: 28px; height: 28px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-secondary); transition: all 0.12s; font-family: var(--font-sans);
+}
+.page-btn:hover  { background: var(--teal-50); color: var(--teal-600); border-color: var(--teal-100); }
+.page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }

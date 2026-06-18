@@ -1,0 +1,39 @@
+.detail-cell {
+  background: var(--surface-2) !important;
+  padding: 20px 24px !important;
+  border-top: none !important;
+}
+.detail-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 24px; margin-bottom: 20px;
+}
+.detail-grid section h4 {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 10px;
+}
+.detail-grid dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; }
+.detail-grid dt { color: var(--text-muted); white-space: nowrap; padding: 1px 0; }
+.detail-grid dd { color: var(--text-primary); padding: 1px 0; }
+
+.device-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 12px; font-size: 12px; color: var(--accent);
+  text-decoration: none; font-weight: 500;
+}
+.device-link:hover { color: var(--teal-800); }
+
+.event-list { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.event-list li { display: flex; align-items: baseline; gap: 6px; }
+.event-list li i { font-size: 11px; flex-shrink: 0; }
+.ev-ok   i { color: var(--green-400); }
+.ev-fail i { color: var(--red-400); }
+.ev-error { color: var(--red-400); }
+
+.metrics-panel { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.metrics-header {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;
+}
+.metrics-charts { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+.chart-wrap { display: flex; flex-direction: column; gap: 4px; }
+.chart-label { font-size: 11px; color: var(--text-muted); }
