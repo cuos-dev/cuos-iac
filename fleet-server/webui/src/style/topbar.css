@@ -1,0 +1,29 @@
+.topbar {
+  background: var(--accent);
+  padding: 0 28px; height: 54px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-brand {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -0.01em;
+}
+.topbar-sub { color: rgba(255,255,255,0.5); font-weight: 400; font-size: 13px; }
+.brand-icon {
+  width: 30px; height: 30px;
+  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #fff;
+}
+.ws-dot {
+  width: 7px; height: 7px; border-radius: 50%; margin-left: 4px;
+  background: rgba(255,255,255,0.35);
+}
+.ws-dot-ok  { background: #6ee7b7; box-shadow: 0 0 0 2px rgba(110,231,183,0.3); }
+.ws-dot-off { background: rgba(255,255,255,0.3); }
+
+.topbar-stats { display: flex; align-items: center; gap: 20px; }
+.topbar-stat  { display: flex; flex-direction: column; align-items: flex-end; }
+.topbar-stat-val   { font-size: 17px; font-weight: 600; color: #fff; font-family: var(--font-mono); line-height: 1; }
+.topbar-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: rgba(255,255,255,0.6); margin-top: 2px; }
+.topbar-divider    { width: 1px; height: 28px; background: rgba(255,255,255,0.2); }

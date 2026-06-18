@@ -1,0 +1,23 @@
+.log-stream { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.log-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+}
+.log-dot      { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+.log-dot-live { color: var(--teal-400); }
+.log-filter {
+  border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px;
+  font-family: var(--font-mono); font-size: 11px; background: var(--surface);
+  color: var(--text-primary); outline: none; width: 200px;
+}
+.log-box {
+  font-family: var(--font-mono); font-size: 11px;
+  max-height: 220px; overflow-y: auto;
+  background: var(--gray-900); color: #d4d4d4;
+  padding: 10px 12px; border-radius: var(--radius);
+}
+.log-empty { color: #555; }
+.log-line  { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; gap: 8px; }
+.log-time  { color: #6b7280; flex-shrink: 0; }
+.log-unit  { color: #60a5fa; flex-shrink: 0; }
+.log-msg   { color: #d4d4d4; word-break: break-word; }
