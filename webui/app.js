@@ -89,8 +89,17 @@ async function pollState() {
       iacApi('cuos:state'), iacApi('cuos:resources'), iacApi('ps'), iacApi('state'), iacApi('progress'),
     ]);
     if (resources && typeof resources === 'object') {
-      resources.ram_percent = Math.round((resources.mem_used_mb / resources.mem_total_mb) * 100);
+      resources.ram_percent  = Math.round((resources.mem_used_mb  / resources.mem_total_mb)  * 100);
       resources.disk_percent = Math.round((resources.disk_used_mb / resources.disk_total_mb) * 100);
+      resources.cpu_percent  = Math.round(resources.cpu_usage ?? 0);
+      resources.ip      = resources.network?.[0]?.ip?.split('/')[0] ?? null;
+      resources.dns     = Array.isArray(resources.dns_servers) ? (resources.dns_servers[0] ?? null) : null;
+      resources.ntp     = Array.isArray(resources.ntp_servers) && resources.ntp_servers.length ? resources.ntp_servers[0] : null;
+      resources.gateway = resources.default_route_ip ?? null;
+    }
+    if (appState && typeof appState === 'object') {
+      appState.iac_started = appState.last_iac_start ?? null;
+      appState.commit      = appState.iac_commit ?? null;
     }
     const msg = { type: 'state', cuosState, resources, ps, appState, progress, system: getSystem() };
     const str = JSON.stringify(msg);
@@ -137,7 +146,7 @@ const ALLOWED = new Set([
   'docker:logs', 'docker:remove', 'docker:version', 'compose:file',
 ]);
 
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
+app.use((_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 
 // --- server + WebSocket ---
 
