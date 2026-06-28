@@ -3,3 +3,4 @@
 node_modules/
 fleet-agent/local-test.state_fleet_uuid
 fleet-server/data/
+fleet-server/webui/dist/
