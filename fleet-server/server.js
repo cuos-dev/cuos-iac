@@ -117,7 +117,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false }));
 app.use('/ui', express.static(path.join(__dirname, 'webui/dist')));
 
 // Auth — Basic Auth for browser, Bearer token for automation (3.3)
@@ -284,7 +284,7 @@ app.get('/api/clients/:id/direct', requireAuth, (req, res) => {
 
 app.get('/api/meta', requireAuth, (req, res) => res.json({ wsNonce: UI_WS_NONCE, hasVm: !!FLEET_VM_URL, hasVl: !!FLEET_VL_URL }));
 app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
-app.get('/ui/*', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'webui/dist/index.html')));
+app.get('/ui/*path', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'webui/dist/index.html')));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
