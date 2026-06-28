@@ -1,3 +1,3 @@
 import { defineConfig } from 'vite';
 import preact from '@preact/preset-vite';
-export default defineConfig({ plugins: [preact()], build: { outDir: 'dist' } });
+export default defineConfig({ plugins: [preact()], base: '/ui/', build: { outDir: 'dist' } });
