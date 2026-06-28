@@ -4,9 +4,8 @@
 #   docker compose up -d
 #
 # Agent system.json entries to point at this stack (replace <host> with your server IP/hostname):
-#   "victoria_metrics_url": "http://<host>:8085/api/ingest/metrics"
-#   "victoria_logs_url":    "http://<host>:8085/api/ingest/logs"
-#   "fleet_log_units":      ["my-service.service"]
+#   "fleet_server_url": "http://<host>:8085"
+#   "fleet_log_units":  ["my-service.service"]   # optional: enable log forwarding
 
 services:
   fleet-server:
