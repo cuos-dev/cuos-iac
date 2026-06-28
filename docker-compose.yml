@@ -1,0 +1,53 @@
+# Fleet Server stack — spin up fleet-server + VictoriaMetrics + VictoriaLogs
+#
+# Copy .env.example to .env and fill in the required values, then:
+#   docker compose up -d
+#
+# Agent system.json entries to point at this stack (replace <host> with your server IP/hostname):
+#   "victoria_metrics_url": "http://<host>:8085/api/ingest/metrics"
+#   "victoria_logs_url":    "http://<host>:8085/api/ingest/logs"
+#   "fleet_log_units":      ["my-service.service"]
+
+services:
+  fleet-server:
+    image: ghcr.io/${GITHUB_OWNER:-cuos}/cuos-iac-fleet-server:latest
+    # build: ./fleet-server   # uncomment to build locally instead
+    ports:
+      - "${FLEET_PORT:-8085}:8085"
+    environment:
+      FLEET_SECRET:     ${FLEET_SECRET:?set FLEET_SECRET in .env}
+      FLEET_ADMIN_USER: ${FLEET_ADMIN_USER:-admin}
+      FLEET_ADMIN_PASS: ${FLEET_ADMIN_PASS:?set FLEET_ADMIN_PASS in .env}
+      FLEET_VM_URL:     http://victoriametrics:8428
+      FLEET_VL_URL:     http://victorialogs:9428
+      FLEET_WEBHOOK_URL:    ${FLEET_WEBHOOK_URL:-}
+      FLEET_WEBHOOK_EVENTS: ${FLEET_WEBHOOK_EVENTS:-}
+    volumes:
+      - fleet-data:/data
+    depends_on:
+      - victoriametrics
+      - victorialogs
+    restart: unless-stopped
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:latest
+    volumes:
+      - vm-data:/storage
+    command:
+      - -storageDataPath=/storage
+      - -retentionPeriod=${VM_RETENTION:-90d}
+    restart: unless-stopped
+
+  victorialogs:
+    image: docker.io/victoriametrics/victoria-logs:latest
+    volumes:
+      - vl-data:/vlogs-storage
+    command:
+      - -storageDataPath=/vlogs-storage
+      - -retentionPeriod=${VL_RETENTION:-90d}
+    restart: unless-stopped
+
+volumes:
+  fleet-data:
+  vm-data:
+  vl-data:

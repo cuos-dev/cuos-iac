@@ -235,8 +235,11 @@ function pushMetricsToVM(vmUrl, resources) {
    .map(([n, v]) => `${n}{${labels}} ${v} ${ts}`)
    .join('\n');
   if (!body) return;
-  fetch(vmUrl, { method: 'POST', body })
-    .catch(e => console.error('VictoriaMetrics push failed:', e.message));
+  fetch(vmUrl, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${fleetSecret}` },
+    body,
+  }).catch(e => console.error('VictoriaMetrics push failed:', e.message));
 }
 
 // 4.2 VictoriaLogs log forwarding via journalctl
@@ -252,8 +255,11 @@ function startLogForwarding(logsUrl, units) {
   const flush = setInterval(() => {
     if (!buf.length) return;
     const body = buf.splice(0).join('\n');
-    fetch(logsUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-ndjson' }, body })
-      .catch(e => console.error('VictoriaLogs push failed:', e.message));
+    fetch(logsUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-ndjson', Authorization: `Bearer ${fleetSecret}` },
+      body,
+    }).catch(e => console.error('VictoriaLogs push failed:', e.message));
   }, 5000);
   let partial = '';
   proc.stdout.on('data', chunk => {

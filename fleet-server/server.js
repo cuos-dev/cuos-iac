@@ -145,6 +145,28 @@ function fireWebhook(event, device) {
   }).catch(e => console.error(JSON.stringify({ level: 'error', msg: 'webhook failed', error: e.message })));
 }
 
+// Ingest proxy — agents push through fleet-server; VM/VL stay internal
+app.post('/api/ingest/metrics', express.raw({ type: '*/*', limit: '2mb' }), (req, res) => {
+  const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
+  if (!bearer || bearer[1] !== WS_SECRET) return res.status(401).end();
+  if (!FLEET_VM_URL) return res.status(503).end();
+  fetch(`${FLEET_VM_URL}/api/v1/import/prometheus`, { method: 'POST', body: req.body })
+    .then(r => res.status(r.status).end())
+    .catch(() => res.status(502).end());
+});
+
+app.post('/api/ingest/logs', express.raw({ type: '*/*', limit: '4mb' }), (req, res) => {
+  const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
+  if (!bearer || bearer[1] !== WS_SECRET) return res.status(401).end();
+  if (!FLEET_VL_URL) return res.status(503).end();
+  fetch(`${FLEET_VL_URL}/insert/jsonline`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-ndjson' },
+    body: req.body,
+  }).then(r => res.status(r.status).end())
+    .catch(() => res.status(502).end());
+});
+
 // List clients
 app.get('/api/clients', requireAuth, (req, res) => {
   res.json(Object.values(clients));
