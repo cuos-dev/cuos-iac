@@ -34,14 +34,17 @@ const heartbeatIntervalSec = systemConfig.heartbeat_interval_sec || 30;
 // ponytail: these are read once; restart agent to pick up changes
 const hostname = systemConfig.hostname || systemConfig.system_name || systemConfig['iac_repo_subdir'] || 'unknown';
 const metricsIntervalSec = systemConfig.metrics_interval_sec || 60;
-const vmLogsUrl = systemConfig.victoria_logs_url;
-const logUnits  = systemConfig.fleet_log_units || [];
+const logUnits = systemConfig.fleet_log_units || [];
 
 if (!fleetServerUrl) {
   console.error('No fleet_server_url configured');
   await new Promise((resolve)=>setTimeout(resolve, 3000*1000));
   process.exit(1);
 }
+
+const baseUrl = fleetServerUrl.replace(/\/$/, '');
+const vmIngestUrl  = `${baseUrl}/api/ingest/metrics`;
+const vlIngestUrl  = `${baseUrl}/api/ingest/logs`;
 
 // ---- UUID persistence ----
 const UUID_FILE = process.env.FLEET_UUID_FILE || '/data/state_fleet_uuid';
@@ -214,9 +217,8 @@ async function collectAndSendMetrics() {
   } catch (e) {
     console.error('Failed to send metrics', e.message);
   }
-  // 4.1 push to VictoriaMetrics if configured
-  const vmUrl = systemConfig.victoria_metrics_url;
-  if (vmUrl) pushMetricsToVM(vmUrl, resourcesData);
+  // 4.1 push metrics
+  pushMetricsToVM(vmIngestUrl, resourcesData);
 }
 
 // 4.1 VictoriaMetrics push (Prometheus text format)
@@ -290,5 +292,5 @@ function startLogForwarding(logsUrl, units) {
 }
 
 connect();
-if (vmLogsUrl && logUnits.length) startLogForwarding(vmLogsUrl, logUnits);
+if (logUnits.length) startLogForwarding(vlIngestUrl, logUnits);
 
