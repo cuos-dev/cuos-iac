@@ -315,8 +315,8 @@ run_docker_compose() {
     --remove-orphans \
     --pull never
 
-  docker image prune -f --filter "until=96h" || true
-  docker builder prune -f --filter "until=240h" 2>/dev/null || true
+  docker image prune -a -f --filter "label!=dev.cuos.system" --filter "until=96h" || true
+  docker builder prune --keep-storage 2g -f 2>/dev/null || true
 
   report "Started/Updated Docker Compose services."
 }
