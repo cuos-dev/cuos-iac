@@ -190,6 +190,9 @@ html, body {
   text-align: right;
 }
 .status-label.status-Up { color: #4CAF50; font-weight: bold; }
+.status-label.status-Restarting { color: #F44336; font-weight: bold; }
+.status-label.status-Exited { color: #F44336; font-weight: bold; }
+.status-label.status-unhealthy { color: #F44336; font-weight: bold; }
 .sys-value.status-running { color: #4CAF50; font-weight: bold; }
 .sys-value.status-stopped { color: #F44336; font-weight: bold; }
 .sys-value.status-paused { color: #FFEB3B; font-weight: bold; }
