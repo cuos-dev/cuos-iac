@@ -28,8 +28,8 @@ Click the **Fork** button on GitHub to create your own copy of the project.
 ### 2. Clone Your Fork
 
 ```bash
-git clone https://github.com/your-username/cuos.git
-cd cuos
+git clone https://github.com/your-username/cuos-iac.git
+cd cuos-iac
 ```
 
 ## 🐛 Reporting Issues
