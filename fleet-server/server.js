@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Fleet Server MVP
 import express from 'express';
 import { engine } from 'express-handlebars';

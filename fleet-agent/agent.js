@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Fleet Agent MVP
 import fs from 'fs';
 import crypto from 'crypto';

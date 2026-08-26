@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
 
 # Path to the real docker binary (avoid recursion, see ./docker script)
 DOCKER_REAL="${DOCKER_REAL:-/usr/bin/docker}"

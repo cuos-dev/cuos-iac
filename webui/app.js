@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import express from 'express';
 import { engine } from 'express-handlebars';
 import basicAuth from 'basic-auth';

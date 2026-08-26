@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 FROM node:25.9.0-alpine3.22
 
 WORKDIR /app

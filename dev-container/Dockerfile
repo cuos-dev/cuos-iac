@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 FROM debian:13.4
 
 VOLUME ["/etc/ssh/keys", "/root"]
