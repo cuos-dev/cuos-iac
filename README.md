@@ -128,7 +128,7 @@ Recommandation: Set environment variables for git with your ssh key:
 Login with ssh:
 
 ```shell
-git -p 3522 root@mysystem
+ssh -p 3522 root@mysystem
 ```
 
 ---
