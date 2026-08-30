@@ -5,7 +5,8 @@
 # -------------------------------------------------------------------
 # Path to YOUR docker wrapper script (the one that rewrites -v/--volume/--mount)
 # If you prefer, uncomment the heredoc section further below to inline it here.
-WRAP="${WRAP:-"${PWD}/docker"}"
+# Resolved next to this script so the suite runs from any working directory.
+WRAP="${WRAP:-"$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/docker"}"
 
 if [ ! -x "${WRAP}" ]; then
   echo "Error: WRAP not found or not executable: ${WRAP}" >&2
@@ -25,14 +26,16 @@ export DEBUG="${DEBUG:-0}"           # set 1 for wrapper debug logs
 # cuos_host_path: mock of 'cuos-host-path' (cannot export hyphenated function names)
 # Behavior: takes container path ($1), resolves like realpath, and prints a host path.
 # We prefix with /HOST to make assertions straightforward.
+# The tests use made-up paths (/data/work, /home/user/data), so resolution must
+# not require them to exist: -m normalises the path without touching the disk.
 cuos_host_path() {
   set -euo pipefail
   local p="${1:-}"
   # Resolve path similarly to real cuos-host-path (which uses realpath)
   if command -v realpath >/dev/null 2>&1; then
-    p="$(realpath -- "$p")"
+    p="$(realpath -m -- "$p")"
   elif command -v readlink >/dev/null 2>&1; then
-    p="$(readlink -f -- "$p" 2>/dev/null || printf '%s' "$PWD/${p#./}")"
+    p="$(readlink -m -- "$p" 2>/dev/null || printf '%s' "$PWD/${p#./}")"
   else
     p="$PWD/${p#./}"
   fi
@@ -77,9 +80,9 @@ expect() {
 
 # Realpath of current directory (for relative path tests)
 if command -v realpath >/dev/null 2>&1; then
-  PWD_REAL="$(realpath .)"
+  PWD_REAL="$(realpath -m .)"
 elif command -v readlink >/dev/null 2>&1; then
-  PWD_REAL="$(readlink -f . 2>/dev/null || pwd)"
+  PWD_REAL="$(readlink -m . 2>/dev/null || pwd)"
 else
   PWD_REAL="$(pwd)"
 fi
