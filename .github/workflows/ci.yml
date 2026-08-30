@@ -105,21 +105,8 @@ jobs:
             echo "No test scripts in this repository."
             exit 0
           fi
-          # Excluded until it passes. It had never run in CI, and against this
-          # repository's own wrapper (dev-container/docker) it fails 3 of 9: the
-          # host-path mapping drops the path suffix, producing /HOST where
-          # /HOST/data/work is expected. Named here rather than hidden behind
-          # continue-on-error, so the gate stays real for everything else.
-          # See brain/tasks/fix-failing-tests.md.
-          skip=( "dev-container/docker.test.sh" )
           status=0
           for file in "${files[@]}"; do
-            for s in "${skip[@]}"; do
-              if [[ "${file}" == "${s}" ]]; then
-                echo "SKIPPED ${file} - see the comment in this workflow"
-                continue 2
-              fi
-            done
             echo "::group::${file}"
             if ! bash "${file}"; then
               status=1
