@@ -444,6 +444,16 @@ perform_update() {
   return 0
 }
 
+ensure_start() {
+  if ! run_docker_compose; then
+    set_state '.iac_state = "docker compose failed"'
+    return 1
+  else
+    set_state '.iac_state = "running"'
+    return 0
+  fi
+}
+
 perform_update_os_if_not_tagged() {
   # poll os update, only needed if digest is empty
   OS_DIGEST="$(jq -r '.os_image_digest // empty' "${CONFIG_PATH}")"
@@ -498,7 +508,7 @@ sleep_on_manual_updates() {
     return
   fi
   if jq -e '.iac_manual_updates == true' "${CONFIG_PATH}" > /dev/null; then
-    set_state '.iac_state = "running"'
+    ensure_start
     startup_done
     isleep infinity || counter=999
     set_state '.iac_state = "updating"'
