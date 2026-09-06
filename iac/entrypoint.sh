@@ -369,9 +369,24 @@ perform_update() {
     return 1
   fi
 
-  REPO_DIR_SUBDIR="$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")"
-  if [ -n "$REPO_DIR_SUBDIR" ]; then
-    REPO_DIR_SUBDIR="/$REPO_DIR_SUBDIR"
+  local subdir
+  subdir="$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")"
+  REPO_DIR_SUBDIR=""
+  if [ -n "$subdir" ]; then
+    REPO_DIR_SUBDIR="/$subdir"
+  fi
+
+  # A system can be repointed without the repository moving: whoever writes a
+  # different iac_repo_subdir into the system config - `cuos patch`, the WebUI,
+  # a fleet command - has said that another directory of the same commit
+  # describes this system from now on. Read the definition again when that
+  # happens, exactly as for a new commit. Without this the change takes effect
+  # only at the next push: clone_or_pull_repo reports "no new commit" and the
+  # branch below never looks at system.json.
+  if [[ "${state}" != "0" ]] && \
+      [[ "${subdir}" != "$(get_state '.iac_subdir // ""')" ]]; then
+    report "Info: iac_repo_subdir is now '${subdir:-<repo root>}'."
+    state=0
   fi
 
   # repo has update / is new:
@@ -399,6 +414,7 @@ perform_update() {
       local commit
       commit="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")"
       set_state --arg commit "${commit}" '.iac_commit = $commit'
+      set_state --arg subdir "${subdir}" '.iac_subdir = $subdir'
       set_state '.last_iac_update = (now | todate)'
       counter=0
     else
