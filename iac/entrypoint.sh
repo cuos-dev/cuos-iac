@@ -393,6 +393,17 @@ perform_update() {
   if [[ "${state}" == "0" ]]; then
     decrypt_files
 
+    # Recorded before the definition is applied, not after it. Applying one can
+    # end in a reboot - cuos_api "update:json" writes the other slot and
+    # restarts the machine - and nothing below here is reached then. A subdir
+    # remembered only afterwards therefore names the previous directory for the
+    # whole of an update, and a system repointed back to that directory in that
+    # window compares equal and is dropped as "no change": it keeps the version
+    # it was moved to, silently, until the repository moves.
+    # The failure path below takes it back out, so a cycle that did not get
+    # through is tried again.
+    set_state --arg subdir "${subdir}" '.iac_subdir = $subdir'
+
     apply_system_json_if_changed
     local system_json_changed="$?"
     local failed=""
@@ -414,10 +425,10 @@ perform_update() {
       local commit
       commit="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")"
       set_state --arg commit "${commit}" '.iac_commit = $commit'
-      set_state --arg subdir "${subdir}" '.iac_subdir = $subdir'
       set_state '.last_iac_update = (now | todate)'
       counter=0
     else
+      set_state '.iac_subdir = ""'
       set_state --arg failed "${failed}" '.iac_state = $failed'
       return 1
     fi
