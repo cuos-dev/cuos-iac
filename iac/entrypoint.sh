@@ -384,7 +384,7 @@ perform_update() {
   # only at the next push: clone_or_pull_repo reports "no new commit" and the
   # branch below never looks at system.json.
   if [[ "${state}" != "0" ]] && \
-      [[ "${subdir}" != "$(get_state '.iac_subdir // ""')" ]]; then
+      [[ "${subdir}" != "$(get_state '.iac_subdir // "%"')" ]]; then
     report "Info: iac_repo_subdir is now '${subdir:-<repo root>}'."
     state=0
   fi
@@ -428,7 +428,7 @@ perform_update() {
       set_state '.last_iac_update = (now | todate)'
       counter=0
     else
-      set_state '.iac_subdir = ""'
+      set_state '.iac_subdir = "%"'
       set_state --arg failed "${failed}" '.iac_state = $failed'
       return 1
     fi
@@ -445,6 +445,13 @@ perform_update() {
 }
 
 ensure_start() {
+  local subdir
+  subdir="$(jq -r '.iac_repo_subdir // empty' "$CONFIG_PATH")"
+  REPO_DIR_SUBDIR=""
+  if [ -n "$subdir" ]; then
+    REPO_DIR_SUBDIR="/$subdir"
+  fi
+
   if ! run_docker_compose; then
     set_state '.iac_state = "docker compose failed"'
     return 1
