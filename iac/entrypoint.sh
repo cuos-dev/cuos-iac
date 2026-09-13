@@ -475,12 +475,42 @@ perform_update_os_if_not_tagged() {
 }
 
 
+# Say once which mode commit verification is in. Without this, "switched off"
+# and "the key name is misspelled" look identical from the outside: the manager
+# runs normally and verify_commit returns success without checking anything.
+# Counting works for both shapes the keys may take, a list or a principal map.
+signing_status_reported=0
+report_signing_status() {
+  [[ "${signing_status_reported}" == "0" ]] || return 0
+  signing_status_reported=1
+
+  local count message id level
+  count="$(jq -r '(.iac_repo_signing_keys // []) | length' "$CONFIG_PATH" 2>/dev/null)"
+  [[ "${count}" =~ ^[0-9]+$ ]] || count=0
+
+  if [[ "${count}" -gt 0 ]]; then
+    id="cuos:iac:commit_verification_on"
+    level="info"
+    message="Commit signature verification is on: ${count} allowed signer(s)."
+  else
+    id="cuos:iac:commit_verification_off"
+    level="warning"
+    message="Commit signature verification is OFF: no iac_repo_signing_keys in the configuration. Every commit in the IaC repository is applied unchecked."
+  fi
+
+  report "${message}"
+  jq -n --arg id "${id}" --arg level "${level}" --arg message "${message}" \
+    '{id: $id, level: $level, message: $message}' \
+    | cuos_api "report" - || true
+}
+
 check_update() {
   if [ ! -f "$CONFIG_PATH" ]; then
     report "Error: $CONFIG_PATH not found, waiting..." >&2
     isleep 10
     exit 1
   fi
+  report_signing_status
   perform_update
   perform_update_os_if_not_tagged
   # TODO: Self update
