@@ -157,7 +157,27 @@ A service without `x-digest` is pulled unchecked, and the manager says so in its
 log rather than refusing. Remember to update the digest when you move the
 version.
 
-**Sign your commits and name the signers.**
+**Sign your commits and list the keys that may sign them.**
+
+```json
+{
+    "iac_repo_signing_keys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...",
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAB..."
+    ]
+}
+```
+
+These are **SSH** signatures: the keys become a git `allowedSignersFile` and the
+manager runs `git verify-commit HEAD` (`iac/entrypoint.sh:144`). A commit that
+does not verify is not applied, and `iac_state` becomes `verification failed`.
+A commit signed by a key that is not listed is rejected with
+`No principal matched`.
+
+What is checked is the **key**. Any listed key verifies any commit, whoever
+authored it — this is a list of keys that may deploy, not a mapping of who may
+deploy as whom. A map of name to key is accepted as well, if you want the names
+recorded:
 
 ```json
 {
@@ -166,16 +186,6 @@ version.
     }
 }
 ```
-
-These are **SSH** signatures: the keys become a git `allowedSignersFile` and the
-manager runs `git verify-commit HEAD` (`iac/entrypoint.sh:144`). A commit that
-does not verify is not applied, and `iac_state` becomes `verification failed`.
-
-A plain array of keys works too. What is checked is the **key**, not the name in
-front of it: any listed key verifies any commit, whoever authored it. The name
-is a label for humans, so the map above is worth the extra typing — it says who
-each key belongs to. A commit signed by a key that is not listed is rejected
-with `No principal matched`.
 
 **Leave the key out and no verification happens at all** — every commit is
 applied, with no message and no state saying so. The same is true of a
