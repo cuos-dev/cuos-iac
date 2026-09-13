@@ -15,8 +15,8 @@ Add the following keys to your CuOS system.json:
 
 ```json
 {
-    "initial_image": "ghcr.io/cuos-dev/cuos-iac",
-    "initial_image_version": "latest",
+    "init_image": "ghcr.io/cuos-dev/cuos-iac",
+    "init_image_version": "latest",
     "iac_repo_url": "https://token-user:token-password@github.com/your-user/internal-iac-repo.git"
 }
 ```
@@ -46,7 +46,7 @@ include:
 
 - Use pinned docker container versions everywhere.
 - Use digests everywhere:
-  - Set `initial_image_digest` to the digest of the image in `system.json`.
+  - Set `init_image_digest` to the digest of the image in `system.json`.
   - Set all digest of all image in `system.json`
   - Add `digest` key to each service in `docker-compose.yml`. This is **not** an offical feature of docker-compose.
 - GPG-sign your commits. (Upcoming feature: Enable validation by adding validation keys with `"iac-validation-keys": [...]` in `system.json`. If the last commit is not signed, no changes will be applied.)
