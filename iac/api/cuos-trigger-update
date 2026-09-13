@@ -1,0 +1,10 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+
+# Run by CuOS for 'cuos trigger-update' (system/cuos/api.sh). Waking the poll
+# loop is the whole job: it then checks the repository and updates. Exit 0 says
+# so - on 1 or 126 CuOS assumes no app handled it and runs 'cuos update'
+# itself.
+killall sleep
+
+exit 0
