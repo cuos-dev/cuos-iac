@@ -144,13 +144,16 @@ These are **SSH** signatures: the keys become a git `allowedSignersFile` and the
 manager runs `git verify-commit HEAD` (`iac/entrypoint.sh:144`). A commit that
 does not verify is not applied, and `iac_state` becomes `verification failed`.
 
-A plain array of keys works too — git matches the signature against the keys in
-the file — but the map above is what an `allowed_signers` file looks like, and
-it says who each key belongs to.
+A plain array of keys works too. What is checked is the **key**, not the name in
+front of it: any listed key verifies any commit, whoever authored it. The name
+is a label for humans, so the map above is worth the extra typing — it says who
+each key belongs to. A commit signed by a key that is not listed is rejected
+with `No principal matched`.
 
 **Leave the key out and no verification happens at all** — every commit is
-applied, with no message and no state saying so. Treat it as part of any setup
-you would call production.
+applied, with no message and no state saying so. The same is true of a
+misspelled key name, which looks exactly like a system that is protected. Check
+it once against a deliberately bad commit rather than trusting the spelling.
 
 **Keep the repository private, or assume it is public.** It holds `system.json`,
 which describes the whole system.
