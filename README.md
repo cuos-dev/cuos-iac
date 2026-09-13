@@ -1,200 +1,220 @@
-
 # CuOS IaC
 
-🚀 CuOS IaC helps you keep your (CuOS-based) systems up-to-date, secure, and easy to manage – no matter where they run. Designed for reliability and automation, CuOS IaC empowers you to define, update, and control your infrastructure and services through simple Git workflows. Whether you manage a single device or a global fleet, CuOS IaC brings modern DevOps practices to your edge and embedded environments.
+🚀 CuOS IaC keeps your systems up to date and manageable, wherever they run. You
+describe the services a device should run in a `docker-compose.yml`, commit it,
+and the device follows — one device or a whole fleet, through plain Git.
 
-For more information about CuOS, visit the [CuOS main project](https://github.com/cuos-dev/cuos).
+For CuOS itself, see the [CuOS main project](https://github.com/cuos-dev/cuos).
 
-## Main Features
+## What it is
 
-CuOS IaC is an Infrastructure-as-Code (IaC) manager based on [CuOS](https://github.com/cuos-dev/cuos). This project provides a service (Docker container, source code in the `iac/` directory) that automatically polls a Git repository and applies changes to the CuOS system. The `docker-compose.yml` file in *your* repository is what defines, runs and updates your services.
+CuOS IaC is the **CuOS Init App** a system gets by default: `cuos-release`'s
+`release.json` pins it as `init_image`, so a configuration that includes
+`release.json` already runs it. On the device it is one container that polls a
+Git repository and applies what it finds there —
+[Development Guide](https://github.com/cuos-dev/cuos/blob/HEAD/docs/development-guide.md)
+covers when you would replace it with an Init App of your own.
 
-It is the **CuOS Init App** a system gets by default: `cuos-release`'s `release.json` pins it as `init_image`, so a configuration that includes it already runs CuOS IaC. See the [Development Guide](https://github.com/cuos-dev/cuos/blob/HEAD/docs/development-guide.md) for when you would replace it with one of your own.
+Source: `iac/` (the manager), plus `webui/`, `fleet-server/`, `fleet-agent/` and
+`dev-container/` for the optional pieces.
 
-## Installation & Usage
+## Getting started
 
-Add the following keys to your CuOS system.json:
+A system is one repository holding two files.
+[`iac-hello-world-system`](https://github.com/cuos-dev/iac-hello-world-system#readme)
+is exactly that, ready to clone.
+
+**1. Add `cuos-release` as a submodule.** It carries the pinned versions and the
+compose files for the optional components:
+
+```sh
+git submodule add https://github.com/cuos-dev/cuos-release.git
+```
+
+**2. Write `system.json`** — the system itself, and the repository it follows:
 
 ```json
 {
-    "init_image": "ghcr.io/cuos-dev/cuos-iac",
-    "init_image_version": "v0.4.0",
-    "iac_repo_url": "https://token-user:token-password@github.com/your-user/internal-iac-repo.git"
+    "#include": ["cuos-release/release.json"],
+    "hostname": "my-system",
+    "iac_repo_url": "https://github.com/your-org/your-iac-repo.git",
+    "iac_repo_branch": "main"
 }
 ```
 
-Push the system.json additionally to your iac-repo as `/system.json`.
+`release.json` already pins `init_image` to CuOS IaC, so nothing further is
+needed to get the manager itself.
 
-> **The whole `system.json` is baked into the built artefact and committed to
-> your IaC repository.** A token in `iac_repo_url` therefore ends up in both.
-> Use a deploy key, or encrypt the value —
-> [`tool.sh config-encrypt`](https://github.com/cuos-dev/cuos-release#readme).
+**3. Write `docker-compose.yml`** — your services, plus the optional components
+you want. Include those from the submodule rather than copying YAML into your
+file: the shipped files carry the matching version, its digest, and the volumes
+and sockets each component needs to work.
 
-### Configuration keys
+```yml
+include:
+  - path: ./cuos-release/cuos-iac-webui/docker-compose.yml
+  - path: ./cuos-release/cuos-dev-container/docker-compose.yml
+
+services:
+  welcome:
+    image: docker/welcome-to-docker
+    x-digest: "sha256:..."
+    ports:
+      - "80:80"
+```
+
+**4. Commit and push**, then build a system from the same `system.json` with
+[cuos-release](https://github.com/cuos-dev/cuos-release#readme):
+
+```sh
+./cuos-release/tool.sh image system.json
+```
+
+The finished device clones the repository, applies the compose file, and keeps
+following the branch. One repository is both the system definition and its
+deployment source.
+
+> `system.json` has to reach the device **and** the repository: the artefact is
+> built from it, and it is committed as `/system.json` beside the compose file.
+
+## How the device follows the repository
+
+1. Pull the repository (`iac_repo_branch`, `iac_repo_subdir`).
+2. Verify the last commit's signature, if signers are configured.
+3. Check each service's `x-digest` against the image that was pulled.
+4. Bring the compose file up.
+5. Sleep `iac_poll_interval`, then start over.
+
+The interval is shortened by a random few minutes, so a fleet does not hit the
+registry in lockstep. `cuos trigger-update` on the device, the WebUI's button and
+`tool.sh update-iac-local` all wake the loop early.
+
+## Configuration
+
+All of these live in `system.json`.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `iac_repo_url` | — | The repository to poll. Required. |
 | `iac_repo_branch` | the repository's default | Branch to follow. |
-| `iac_repo_subdir` | repository root | Subdirectory holding the `docker-compose.yml`, for a repository serving several systems. |
+| `iac_repo_subdir` | repository root | Subdirectory holding the compose file, for one repository serving several systems. |
 | `iac_poll_interval` | `21600` (6 h) | Seconds between pulls. |
-| `iac_manual_updates` | `false` | `true` never polls; updates happen only when triggered. |
-| `iac_repo_signing_keys` | — | Allowed signers, see below. |
+| `iac_manual_updates` | `false` | `true` never polls; the device updates only when triggered. |
+| `iac_repo_signing_keys` | — | Allowed commit signers, see below. |
 
-The manager also *writes* `iac_state`, `iac_commit`, `iac_error` and
-`iac_error_date` back into the configuration — read them, do not set them.
+The manager writes `iac_state`, `iac_commit`, `iac_error` and `iac_error_date`
+back into the configuration. Read them; do not set them.
 
-Add your services to `docker-compose.yml`:
+> **Everything in `system.json` ends up in the built artefact and in your IaC
+> repository.** A token inside `iac_repo_url` is therefore in both. Use a deploy
+> key, or encrypt the value with
+> [`tool.sh config-encrypt`](https://github.com/cuos-dev/cuos-release#readme).
+
+## Securing the deployment
+
+The device runs what the repository says, so three things decide who can change
+what runs.
+
+**Pin every image and give it a digest.** A tag can be moved; a digest cannot.
+The key is `x-digest`, a CuOS IaC extension — plain docker-compose has no
+per-service digest field, and ignores unknown `x-` keys:
 
 ```yml
 services:
-  welcome:
-    image: docker/welcome-to-docker
-    ports:
-      - "80:80"
+  my-service:
+    image: "ghcr.io/your-org/my-service:1.2.3"
+    x-digest: "sha256:..."
 ```
 
-Tip: Split your docker-compose into multiple files. The optional components
-below ship as ready-made compose files in
-[cuos-release](https://github.com/cuos-dev/cuos-release#readme) — add it to your
-IaC repository as a submodule and include them from there, versions and digests
-already pinned:
+A service without `x-digest` is pulled unchecked, and the manager says so in its
+log rather than refusing. Remember to update the digest when you move the
+version.
+
+**Sign your commits and name the signers.**
+
+```json
+{
+    "iac_repo_signing_keys": {
+        "you@example.com": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA..."
+    }
+}
+```
+
+These are **SSH** signatures: the keys become a git `allowedSignersFile` and the
+manager runs `git verify-commit HEAD` (`iac/entrypoint.sh:144`). A commit that
+does not verify is not applied, and `iac_state` becomes `verification failed`.
+
+**Leave the key out and no verification happens at all** — every commit is
+applied, with no message and no state saying so. Treat it as part of any setup
+you would call production.
+
+**Keep the repository private, or assume it is public.** It holds `system.json`,
+which describes the whole system.
+
+## Optional: WebUI
+
+`webui/` — a web interface on port 8030: when the next pull is due, a button to
+trigger one now, `docker ps` as a table, CPU/RAM/disk/uptime, the system log, and
+the CuOS actions (shutdown, reboot, rollback, factory reset).
 
 ```yml
 include:
   - path: ./cuos-release/cuos-iac-webui/docker-compose.yml
-  - path: ./cuos-release/cuos-iac-fleet-agent/docker-compose.yml
-  - path: ./cuos-release/cuos-dev-container/docker-compose.yml
-  - path: ./my-service/docker-compose.yml
-```
-
-[`iac-hello-world-system`](https://github.com/cuos-dev/iac-hello-world-system#readme)
-is a working repository of exactly that shape.
-
-### Security improvements
-
-- Use pinned docker container versions everywhere.
-- Use digests everywhere:
-  - Set `init_image_digest` to the digest of the image in `system.json`.
-  - Set all digest of all image in `system.json`
-  - Add `digest` key to each service in `docker-compose.yml`. This is **not** an offical feature of docker-compose.
-- **Sign your commits, and list the signers.** This is implemented, not upcoming:
-
-  ```json
-  {
-      "iac_repo_signing_keys": [
-          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA..."
-      ]
-  }
-  ```
-
-  Signatures are **SSH** signatures — the keys become a `git`
-  `allowedSignersFile` and the manager runs `git verify-commit HEAD`
-  (`iac/entrypoint.sh:144`). A commit that does not verify is not applied, and
-  `iac_state` becomes `verification failed`.
-
-  **It fails open:** with the key absent or the list empty, no verification
-  happens at all and every commit is applied. An unsigned deployment is
-  therefore a configuration you have to opt out of, not one you fall into by
-  making a mistake — but it is also not the default.
-
-Be aware, that you have to update the digest on image updates.
-
-## Optional: WebUI
-
-The `webui/` directory contains an optional web interface, which is provided as a separate Docker container. The WebUI offers the following features:
-
-- Display when the next pull/update will occur
-- Trigger pull & update manually
-- Show `docker ps` as a table
-- Show system stats: CPU, RAM, disk usage, last update time, system uptime, system logs, etc.
-- Perform system and CuOS actions: shutdown, reboot, rollback, factory reset
-
-To enable it, add the following service to your `docker-compose.yml` file:
-
-```yml
-services:
-  cuos-iac-webui:
-    image: "ghcr.io/cuos-dev/cuos-iac-webui:v0.4.0"
-    volumes:
-      - /var/run/cuos.sock:/var/run/cuos.sock
-      - /system.json:/system.json:ro
-    ports:
-      - "8030:3000"
-    restart: always
 ```
 
 ## Optional: Fleet
 
-`fleet-server/` and `fleet-agent/` manage many systems at once: the agent on
-each device opens a websocket to a server you run, which sees the fleet's state
-and can reach into it.
+`fleet-agent/` runs on each device and connects to `fleet-server/`, which you run
+yourself — the server is not part of a device's compose file and ships none of
+its own. It listens on `FLEET_SERVER_PORT`, default 8085.
 
-Configure the agent in `system.json`:
+```yml
+include:
+  - path: ./cuos-release/cuos-iac-fleet-agent/docker-compose.yml
+```
 
 | Key | Default | Meaning |
 |---|---|---|
-| `fleet_server_url` | — | The server the agent connects to. Without it the agent exits. |
+| `fleet_server_url` | — | Where the agent connects. Without it the agent exits. |
 | `fleet_secret` | `changeme` | Shared secret for the connection. **Change it.** |
 | `fleet_tags` | `[]` | Labels this device carries, for grouping. |
-| `fleet_uuid` | generated | Pin the device's identity; otherwise one is generated and kept in `/data/state_fleet_uuid`. |
-
-Enable the agent by including
-`cuos-release/cuos-iac-fleet-agent/docker-compose.yml`, as above. The server is
-run wherever you want it, not on the device.
+| `fleet_uuid` | generated | Pin the device's identity; otherwise one is generated into `/data/state_fleet_uuid`. |
 
 ## Optional: Dev-Container
 
-Purpose: Logon to the system to fix issues.
-
-Add the following service to your `docker-compose.yml`:
+`dev-container/` — an SSH login on the running system, for what cannot be fixed
+from the repository. It is privileged and shares the host's network, PID
+namespace and docker socket: a debugging tool, not something to leave running on
+a device you are not working on.
 
 ```yml
-services:
-  cuos-dev-container:
-    image: "ghcr.io/cuos-dev/cuos-iac-dev-container:v0.4.0"
-    container_name: cuos-dev-container
-    network_mode: host
-    pid: host
-    privileged: true
-    volumes:
-      - /root/.docker/config.json:/root/.docker/config.json:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/run/cuos.sock:/var/run/cuos.sock
-      - /data:/data
-      - /dev:/dev
-      - /proc:/proc
-      - /system.json:/system.json:ro
-      - /usr/local/share/ca-certificates/custom:/usr/local/share/ca-certificates/custom:ro
-    environment:
-      - TZ=Europe/Berlin
-    restart: always
+include:
+  - path: ./cuos-release/cuos-dev-container/docker-compose.yml
 ```
 
-Add your SSH key(s) to system.json:
+Add the keys that may log in:
 
 ```json
 {
     "dev-keys": [
-        "ssh-rsa AAAA..."
+        "ssh-ed25519 AAAA..."
     ]
 }
 ```
 
-Recommendation: Set environment variables for git with your ssh key:
+A key may carry `authorized_keys` options, which is where to set a git identity
+for commits made from the device:
 
 ```json
 {
     "dev-keys": [
-        "environment=\"GIT_AUTHOR_NAME=Your Name\",environment=\"GIT_AUTHOR_EMAIL=your-mail@example.com\",environment=\"GIT_COMMITTER_NAME=Your Name\",environment=\"GIT_COMMITTER_EMAIL=your-mail@example.com\" ssh-rsa AAAAB..."
+        "environment=\"GIT_AUTHOR_NAME=Your Name\",environment=\"GIT_AUTHOR_EMAIL=you@example.com\" ssh-ed25519 AAAA..."
     ]
 }
 ```
 
-Login with ssh:
-
-```shell
-ssh -p 3522 root@mysystem
+```sh
+ssh -p 3522 root@my-system
 ```
 
 ---
