@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-FROM debian:13.4-slim
+FROM debian:13.6-slim
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 

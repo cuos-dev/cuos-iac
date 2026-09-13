@@ -11,10 +11,10 @@
   "license": "MIT",
   "description": "",
   "dependencies": {
-    "basic-auth": "^2.0.1",
+    "basic-auth": "^3.0.0",
     "bcrypt": "^6.0.0",
-    "body-parser": "^2.2.0",
-    "express": "^5.1.0",
+    "body-parser": "^2.3.0",
+    "express": "^5.2.1",
     "express-handlebars": "^9.0.1"
   }
 }
