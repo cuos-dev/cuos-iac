@@ -188,9 +188,13 @@ recorded:
 ```
 
 **Leave the key out and no verification happens at all** — every commit is
-applied, with no message and no state saying so. The same is true of a
-misspelled key name, which looks exactly like a system that is protected. Check
-it once against a deliberately bad commit rather than trusting the spelling.
+applied. An **empty list counts as left out**, and so does a misspelled key
+name: all three look exactly like a system that is protected. The manager says
+which mode it is in when it starts (`cuos:iac:commit_verification_off`), so
+check that once rather than trusting the spelling.
+
+The keys may be given with or without their trailing comment, as copied from a
+`.pub` file; both are accepted.
 
 **Keep the repository private, or assume it is public.** It holds `system.json`,
 which describes the whole system.
