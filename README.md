@@ -1,5 +1,7 @@
 # CuOS IaC
 
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE.txt)
+
 🚀 **Infrastructure as Code for devices.** What a system should run — services,
 versions, configuration — lives in a Git repository. Each device pulls it,
 checks that it is genuine, and applies it to itself.
@@ -258,18 +260,13 @@ ssh -p 3522 root@my-system
 
 ---
 
-## 📄 License
+## Contributing
 
-CuOS IaC is open-source and licensed under the **Apache License, Version 2.0**.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions need a Developer
+Certificate of Origin sign-off (`git commit -s`, see [DCO.txt](DCO.txt)).
 
-Please refer to the [LICENSE.txt](LICENSE.txt) file for full license details, and to [NOTICE](NOTICE) for attribution. Each source file carries an `SPDX-License-Identifier` line.
+## License
 
-## Disclaimer
-
-This software is provided without warranty. See [DISCLAIMER.md](DISCLAIMER.md) for more information.
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please check out our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Apache-2.0 — see [LICENSE.txt](LICENSE.txt) and [NOTICE](NOTICE). Each source
+file carries an `SPDX-License-Identifier` line.
+No warranty; see [DISCLAIMER.md](DISCLAIMER.md).
