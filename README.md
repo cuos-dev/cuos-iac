@@ -144,6 +144,10 @@ These are **SSH** signatures: the keys become a git `allowedSignersFile` and the
 manager runs `git verify-commit HEAD` (`iac/entrypoint.sh:144`). A commit that
 does not verify is not applied, and `iac_state` becomes `verification failed`.
 
+A plain array of keys works too — git matches the signature against the keys in
+the file — but the map above is what an `allowed_signers` file looks like, and
+it says who each key belongs to.
+
 **Leave the key out and no verification happens at all** — every commit is
 applied, with no message and no state saying so. Treat it as part of any setup
 you would call production.
