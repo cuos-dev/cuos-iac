@@ -1,22 +1,34 @@
 # CuOS IaC
 
-🚀 CuOS IaC keeps your systems up to date and manageable, wherever they run. You
-describe the services a device should run in a `docker-compose.yml`, commit it,
-and the device follows — one device or a whole fleet, through plain Git.
+🚀 **Infrastructure as Code for devices.** What a system should run — services,
+versions, configuration — lives in a Git repository. Each device pulls it,
+checks that it is genuine, and applies it to itself.
 
 For CuOS itself, see the [CuOS main project](https://github.com/cuos-dev/cuos).
 
 ## What it is
 
-CuOS IaC is the **CuOS Init App** a system gets by default: `cuos-release`'s
-`release.json` pins it as `init_image`, so a configuration that includes
-`release.json` already runs it. On the device it is one container that polls a
-Git repository and applies what it finds there —
-[Development Guide](https://github.com/cuos-dev/cuos/blob/HEAD/docs/development-guide.md)
-covers when you would replace it with an Init App of your own.
+The direction is what sets it apart from most IaC tooling: **nothing pushes to a
+device.** A device holds its own configuration, decides when to act on a change,
+and needs no server to be reachable in order to keep working. From a single
+Raspberry Pi to a few dozen machines.
 
-Source: `iac/` (the manager), plus `webui/`, `fleet-server/`, `fleet-agent/` and
-`dev-container/` for the optional pieces.
+- **Git is the source of truth.** Every deployment traces back to a commit, and
+  commits can be required to carry a signature the device knows.
+- **The device decides.** It pulls, verifies and applies locally. There is no
+  control plane that can deploy onto it.
+- **Offline-first.** Cut off from Git, a device keeps running what it last
+  applied, for as long as it takes.
+- **Optional by parts.** Deploying needs the manager and nothing else. A local
+  web interface, fleet-wide visibility and an SSH debugging container are each
+  something you add when you want it.
+
+| Part | What it does |
+|---|---|
+| `iac/` | The manager. Runs on the device: pull, verify, apply, repeat. |
+| `webui/` | A web interface for one device: state, logs, trigger an update, reboot. |
+| `fleet-agent/`, `fleet-server/` | Many devices reporting to one place. Visibility and convenience — still early, and deliberately not a way to push. |
+| `dev-container/` | SSH onto a running device, for what cannot be fixed from the repository. |
 
 ## Getting started
 
@@ -88,6 +100,21 @@ deployment source.
 The interval is shortened by a random few minutes, so a fleet does not hit the
 registry in lockstep. `cuos trigger-update` on the device, the WebUI's button and
 `tool.sh update-iac-local` all wake the loop early.
+
+### Where the manager sits on a CuOS system
+
+CuOS starts exactly one container of its own and leaves the rest to it — the
+**CuOS Init App**, named by `init_image`. The manager in `iac/` is one of those,
+and the one `cuos-release`'s `release.json` pins, which is why including
+`release.json` is all it takes to get it.
+
+That is the seam: anything that can be an Init App can replace it. Writing your
+own update or deployment mechanism means building one instead of using this —
+see the
+[Development Guide](https://github.com/cuos-dev/cuos/blob/HEAD/docs/development-guide.md).
+It also means CuOS IaC is not limited to CuOS: the manager is a container
+talking to a docker socket, and `tool.sh start-iac-local` runs it on any docker
+host.
 
 ## Configuration
 
