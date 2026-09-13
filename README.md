@@ -175,17 +175,8 @@ A commit signed by a key that is not listed is rejected with
 `No principal matched`.
 
 What is checked is the **key**. Any listed key verifies any commit, whoever
-authored it — this is a list of keys that may deploy, not a mapping of who may
-deploy as whom. A map of name to key is accepted as well, if you want the names
-recorded:
-
-```json
-{
-    "iac_repo_signing_keys": {
-        "you@example.com": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA..."
-    }
-}
-```
+authored it — this is a list of keys that may deploy, not a record of who may
+deploy as whom. Remove a key from the list to remove that person's access.
 
 **Leave the key out and no verification happens at all** — every commit is
 applied. An **empty list counts as left out**, and so does a misspelled key
