@@ -137,7 +137,11 @@ decrypt_files() {
   local exclude_file
   exclude_file="${REPO_DIR}/.git/info/exclude"
   local enc_files
-  enc_files="$(cd "$REPO_DIR" && find "." -type f -iname \*.enc | sed -e 's/\.enc$//g')"
+  # Anchored at the repository root, and without the "./" find prints: git
+  # matches an exclude pattern against the path from the root, so "./iac/.env"
+  # matches nothing at all.
+  enc_files="$(cd "$REPO_DIR" && find "." -type f -iname \*.enc | \
+    sed -e 's/\.enc$//' -e 's|^\./|/|')"
   echo "${enc_files}" >"${exclude_file}"
 }
 
