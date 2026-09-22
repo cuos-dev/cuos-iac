@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-FROM node:26.8.2-alpine3.24
+FROM node:26.9.0-alpine3.24
 
 WORKDIR /app
 EXPOSE 3000
