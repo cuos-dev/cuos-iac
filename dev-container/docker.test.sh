@@ -45,13 +45,29 @@ export -f cuos_host_path
 
 # docker: mock of the real docker CLI (captured by DOCKER_REAL)
 # Behavior: simply echoes the final argv the wrapper execs.
+# `compose ... config` prints COMPOSE_CONFIG, or fails when it is empty, and a
+# rendered compose file is printed as "@" and its content.
 docker() {
-  # Print arguments space-separated in a single line
-  if [ "$#" -gt 0 ]; then
-    printf '%s' "$1"; shift
-    for a in "$@"; do printf ' %s' "$a"; done
+  if [ "${1:-}" = "compose" ]; then
+    local a
+    for a in "$@"; do
+      if [ "$a" = "config" ]; then
+        [ -n "${COMPOSE_CONFIG:-}" ] || return 1
+        printf '%s\n' "$COMPOSE_CONFIG"
+        return 0
+      fi
+    done
   fi
-  printf '\n'
+  local out=() prev=""
+  for a in "$@"; do
+    if [ "$prev" = "-f" ] && [[ "$a" == *.json ]] && [ -f "$a" ]; then
+      out+=("@$(jq -c . "$a")")
+    else
+      out+=("$a")
+    fi
+    prev="$a"
+  done
+  printf '%s\n' "${out[*]}"
 }
 export -f docker
 
@@ -135,6 +151,41 @@ expect "--mount volume untouched" \
 expect "-- passthrough" \
   "run -- -v /x:/y weird -args" \
   run -- -v /x:/y weird -args
+
+# 10) Short options with an attached value are not split
+expect "attached values untouched" \
+  "run -p8080:80 -eFOO=/a:/b -w/srv alpine" \
+  run -p8080:80 -eFOO=/a:/b -w/srv alpine
+
+# 11) Options of the command inside the container are not split
+expect "find -name untouched" \
+  "run alpine find / -name foo" \
+  run alpine find / -name foo
+
+# 12) compose: bind sources, secret files and bind-driver volumes are mapped;
+#     named volumes, build context and profiles of active services are not
+export COMPOSE_CONFIG='{"name":"p","services":{"s":{"build":{"context":"/src"},"profiles":["dev"],"volumes":[{"type":"bind","source":"/data/x","target":"/x"},{"type":"volume","source":"v","target":"/v"}]}},"secrets":{"k":{"file":"/data/k"}},"volumes":{"v":{},"b":{"driver_opts":{"type":"none","o":"bind","device":"/data/b"}}}}'
+expect "compose up renders mapped file" \
+  'compose -p p -f @{"name":"p","services":{"s":{"build":{"context":"/src"},"volumes":[{"type":"bind","source":"/HOST/data/x","target":"/x"},{"type":"volume","source":"v","target":"/v"}]}},"secrets":{"k":{"file":"/HOST/data/k"}},"volumes":{"v":{},"b":{"driver_opts":{"type":"none","o":"bind","device":"/HOST/data/b"}}}} up -d' \
+  compose -p p -f compose.yml up -d
+
+# 13) compose: commands that create no container pass through
+expect "compose ps passthrough" \
+  "compose -f compose.yml ps" \
+  compose -f compose.yml ps
+
+# 14) compose: -v of `compose run` is mapped like docker's
+export COMPOSE_CONFIG='{"name":"p","services":{"s":{}}}'
+expect "compose run -v" \
+  'compose -f @{"name":"p","services":{"s":{}}} run -v /HOST/data/w:/w s' \
+  compose run -v /data/w:/w s
+
+# 15) compose: without a project the command runs as given
+export COMPOSE_CONFIG=""
+expect "compose without project" \
+  "compose up" \
+  compose up
+unset COMPOSE_CONFIG
 
 printf '\nSummary: %d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1

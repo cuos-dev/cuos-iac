@@ -40,4 +40,4 @@ COPY entrypoint.sh /
 COPY sshd_config_local.conf /etc/ssh/sshd_config.d/
 COPY vimrc.local /etc/vim/
 COPY gitconfig /etc/
-COPY cuos cuos-* docker /usr/local/bin/
+COPY cuos cuos-* docker docker-compose /usr/local/bin/

@@ -52,7 +52,7 @@ map_path_or_keep() {
     return 0
   fi
 
-  if ! out="$("$HOST_MAP_BIN" "$in2" 2>/dev/null || true)"; then
+  if ! out="$("$HOST_MAP_BIN" "$in2" 2>/dev/null)"; then
     out=""
   fi
   if [ -n "$out" ]; then
@@ -177,7 +177,6 @@ rewrite_mount_spec() {
 }
 
 # Expand combined short options like -itv/... into -i -t -v<spec>
-# For non-`v` flags, we split to separate tokens (e.g., -p80:80 => "-p" "80:80")
 expand_short_cluster() {
   local arg="$1"
   local rest="${arg#-}"
@@ -201,6 +200,99 @@ expand_short_cluster() {
   done
   # If we stopped before end but not because of v, we may have leftover (rare); ignore.
   printf '%s\0' "${tokens[@]}"
+}
+
+# --- docker compose ---
+# The paths in a compose file are paths in this container, and the daemon
+# resolves them on the host. For the commands that create containers the file
+# is rendered, the sources the daemon mounts are mapped, and compose runs on the
+# result. The build context, env_file and the like are read by compose itself
+# and stay as they are.
+COMPOSE_CREATING=" up create run watch scale "
+
+compose_map_sources() {
+  local config="$1"
+  local updates="[]" line path src
+  while IFS= read -r line; do
+    path="$(jq -c '.[0]' <<<"$line")"
+    src="$(jq -r '.[1]' <<<"$line")"
+    looks_like_path "$src" || continue
+    updates="$(jq -c --argjson p "$path" --arg v "$(map_path_or_keep "$src")" \
+      '. + [[$p, $v]]' <<<"$updates")"
+  done < <(jq -c '
+    (.services // {} | to_entries[] | .key as $s
+      | (.value.volumes // []) | to_entries[]
+      | select(.value.type == "bind")
+      | [["services", $s, "volumes", .key, "source"], .value.source]),
+    (("secrets", "configs") as $k | (.[$k] // {}) | to_entries[]
+      | select(.value.file)
+      | [[$k, .key, "file"], .value.file]),
+    (.volumes // {} | to_entries[]
+      | select((.value.driver_opts.o // "") | split(",") | index("bind"))
+      | select(.value.driver_opts.device)
+      | [["volumes", .key, "driver_opts", "device"], .value.driver_opts.device])
+  ' <<<"$config")
+
+  # The rendering already holds only the active services; their profiles go, so
+  # that a COMPOSE_PROFILES from the project's .env still counts.
+  jq --argjson u "$updates" '
+    reduce $u[] as $x (.; setpath($x[0]; $x[1]))
+    | if has("services") then .services |= map_values(del(.profiles)) else . end
+  ' <<<"$config"
+}
+
+COMPOSE_RENDERED=""
+
+run_compose() {
+  local -a global=() rest=()
+  local sub="" from_stdin=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -f|--file|-p|--project-name|--project-directory|--env-file|--profile|--parallel|--ansi|--progress)
+        if [[ "$1" == -f || "$1" == --file ]] && [ "${2:-}" = "-" ]; then
+          from_stdin=1
+        fi
+        global+=("$1"); shift
+        if [ "$#" -gt 0 ]; then global+=("$1"); shift; fi
+        ;;
+      -f-|-f=-|--file=-)
+        from_stdin=1; global+=("$1"); shift ;;
+      -*)
+        global+=("$1"); shift ;;
+      *)
+        sub="$1"; rest=("$@"); break ;;
+    esac
+  done
+
+  if [ "$from_stdin" = 1 ] || [[ "$COMPOSE_CREATING" != *" $sub "* ]]; then
+    "$DOCKER_REAL" compose "${global[@]}" "${rest[@]}"
+    return
+  fi
+
+  # Without a valid project, compose's own error comes from the command as given.
+  local config
+  if ! config="$("$DOCKER_REAL" compose "${global[@]}" config --format json 2>/dev/null)"; then
+    "$DOCKER_REAL" compose "${global[@]}" "${rest[@]}"
+    return
+  fi
+
+  local -a keep=()
+  local i=0
+  while [ "$i" -lt "${#global[@]}" ]; do
+    case "${global[i]}" in
+      -f|--file) i=$((i + 2)); continue ;;
+      -f*|--file=*) i=$((i + 1)); continue ;;
+    esac
+    keep+=("${global[i]}"); i=$((i + 1))
+  done
+
+  # A file, not stdin: `compose run -it` needs the terminal.
+  COMPOSE_RENDERED="$(mktemp --suffix=.json)" || return 1
+  trap 'rm -f "$COMPOSE_RENDERED"' EXIT
+  compose_map_sources "$config" >"$COMPOSE_RENDERED" || return 1
+  log_debug "Compose file rendered to $COMPOSE_RENDERED"
+
+  "$DOCKER_REAL" compose "${keep[@]}" -f "$COMPOSE_RENDERED" "${rest[@]}"
 }
 
 # --- Parse args and rewrite ---
@@ -264,11 +356,17 @@ while [ "$#" -gt 0 ]; do
       OUT_ARGS+=("--mount=$(rewrite_mount_spec "$mspec")")
       ;;
 
-    # Combined short options: e.g., -itv/home:/mnt:ro
-    -[!-][!-]*)
-      mapfile -d '' -t expanded < <(expand_short_cluster "$arg")
-      # Prepend expanded tokens back to the input stream, then continue
-      set -- "${expanded[@]}" "$@"
+    # Boolean flags combined with -v: -itv/home:/mnt:ro, rm -fv.
+    # Any other letter takes a value (-p8080:80, -eFOO=bar, -w/srv) or is not
+    # docker's at all (find -name), and the argument stays as it is.
+    -[dfiPqt]*v*)
+      if [[ "$arg" =~ ^-[dfiPqt]+v ]]; then
+        mapfile -d '' -t expanded < <(expand_short_cluster "$arg")
+        # Prepend expanded tokens back to the input stream, then continue
+        set -- "${expanded[@]}" "$@"
+      else
+        OUT_ARGS+=("$arg")
+      fi
       ;;
 
     *)
@@ -287,6 +385,11 @@ if [ "$DEBUG" = "1" ]; then
   printf '[docker-wrap] Exec: %s' "$DOCKER_REAL" >&2
   for a in "${OUT_ARGS[@]}"; do printf ' %q' "$a" >&2; done
   printf '\n' >&2
+fi
+
+if [ "${OUT_ARGS[0]:-}" = "compose" ]; then
+  run_compose "${OUT_ARGS[@]:1}"
+  exit "$?"
 fi
 
 "$DOCKER_REAL" "${OUT_ARGS[@]}"

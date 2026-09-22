@@ -4,13 +4,13 @@
 # Path to the real docker binary (avoid recursion, see ./docker script)
 DOCKER_REAL="${DOCKER_REAL:-/usr/bin/docker}"
 
-# Usage: ./resolve_host_path.sh /path/inside/container
-container_path="$(realpath "$1")"
-
-if [ -z "$container_path" ]; then
-  echo "Usage: $0 <path-inside-container>"
+if [ -z "${1:-}" ]; then
+  echo "Usage: $0 <path-inside-container>" >&2
   exit 1
 fi
+
+# -m: a bind source need not exist yet, docker creates it on the host.
+container_path="$(realpath -m -- "$1")"
 
 # exclusions:
 case "$1" in
@@ -44,7 +44,7 @@ for id in $container_ids; do
 done
 
 [ -z "$my_container_id" ] && {
-  echo "Could not identify current container."
+  echo "Could not identify current container." >&2
   exit 1
 }
 
