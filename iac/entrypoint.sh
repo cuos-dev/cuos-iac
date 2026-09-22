@@ -142,7 +142,26 @@ decrypt_files() {
   # matches nothing at all.
   enc_files="$(cd "$REPO_DIR" && find "." -type f -iname \*.enc | \
     sed -e 's/\.enc$//' -e 's|^\./|/|')"
-  echo "${enc_files}" >"${exclude_file}"
+
+  # Only the block between the markers is ours to rewrite; whatever else the
+  # clone carries in its exclude file stays. An earlier block is removed first.
+  local exclude_begin="# BEGIN cuos config-decrypt"
+  local exclude_end="# END cuos config-decrypt"
+  local kept=""
+  if [[ -f "${exclude_file}" ]]; then
+    kept="$(sed -e "/^${exclude_begin}\$/,/^${exclude_end}\$/d" "${exclude_file}")"
+  fi
+
+  {
+    if [[ -n "${kept}" ]]; then
+      echo "${kept}"
+    fi
+    echo "${exclude_begin}"
+    if [[ -n "${enc_files}" ]]; then
+      echo "${enc_files}"
+    fi
+    echo "${exclude_end}"
+  } >"${exclude_file}"
 }
 
 verify_commit() {
