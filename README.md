@@ -136,8 +136,9 @@ back into the configuration. Read them; do not set them.
 
 > **Everything in `system.json` ends up in the built artefact and in your IaC
 > repository.** A token inside `iac_repo_url` is therefore in both. Use a deploy
-> key, or encrypt the value with
-> [`tool.sh config-encrypt`](https://github.com/cuos-dev/cuos-release#readme).
+> key, or encrypt the value with `tool.sh config-encrypt` —
+> [Encrypting configuration at rest](https://github.com/cuos-dev/cuos-release/blob/HEAD/docs/config-encryption.md)
+> explains how, and how the manager decrypts the files again on the device.
 
 ## Securing the deployment
 
