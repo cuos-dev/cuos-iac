@@ -139,9 +139,12 @@ decrypt_files() {
   local enc_files
   # Anchored at the repository root, and without the "./" find prints: git
   # matches an exclude pattern against the path from the root, so "./iac/.env"
-  # matches nothing at all.
+  # matches nothing at all. Sorted, because find lists in the filesystem's order.
   enc_files="$(cd "$REPO_DIR" && find "." -type f -iname \*.enc | \
-    sed -e 's/\.enc$//' -e 's|^\./|/|')"
+    sed -e 's/\.enc$//' -e 's|^\./|/|' | LC_ALL=C sort)"
+
+  # git creates info/ only from its templates, and a clone can be without them.
+  mkdir -p "$(dirname "${exclude_file}")"
 
   # Only the block between the markers is ours to rewrite; whatever else the
   # clone carries in its exclude file stays. An earlier block is removed first.
