@@ -130,6 +130,7 @@ All of these live in `system.json`.
 | `iac_poll_interval` | `21600` (6 h) | Seconds between pulls. |
 | `iac_manual_updates` | `false` | `true` never polls; the device updates only when triggered. |
 | `iac_repo_signing_keys` | — | Allowed commit signers, see below. |
+| `iac_git_credentials` | — | Tokens for private https remotes, see below. |
 
 The manager writes `iac_state`, `iac_commit`, `iac_error` and `iac_error_date`
 back into the configuration. Read them; do not set them.
@@ -139,6 +140,23 @@ back into the configuration. Read them; do not set them.
 > key, or encrypt the value with `tool.sh config-encrypt` —
 > [Encrypting configuration at rest](https://github.com/cuos-dev/cuos-release/blob/HEAD/docs/config-encryption.md)
 > explains how, and how the manager decrypts the files again on the device.
+
+### Private repositories and submodules
+
+`iac_repo_url` and the URLs in `.gitmodules` stay plain `https://` URLs. Credentials for private ones are configured
+separately, per URL prefix:
+
+```json
+"iac_git_credentials": [
+  { "url": "https://github.com/your-org/", "username": "x-access-token", "token": "github_pat_..." }
+]
+```
+
+The manager gives git a credential helper for these entries before it clones or pulls the repository and updates its
+submodules; the most specific prefix wins and `username` defaults to `x-access-token`. The token is neither part of a
+URL nor written to a `.git/config`, so it does not appear in git's messages or in the manager's trace. Put the key into
+the encrypted `system_secrets.json` (see below) instead of `system.json`. Only https remotes are supported; on a
+developer machine the same URLs can still be rewritten to ssh with git's own `url.<base>.insteadOf`.
 
 ## Securing the deployment
 

@@ -65,6 +65,9 @@ do_update_ca_certificates() {
   fi
 }
 
+# shellcheck source=git-credentials.sh
+source "${SCRIPT_DIR}/git-credentials.sh"
+
 clone_or_pull_repo() {
   git_clone() {
     rm -rf "$REPO_DIR"
@@ -79,6 +82,8 @@ clone_or_pull_repo() {
     report "Cloned repo from $repo_url"
     return 0
   }
+  # tokens for private remotes (iac_repo_url and submodules) from system.json, see git-credentials.sh
+  git_credentials_export "$CONFIG_PATH"
   local repo_url
   repo_url="$(jq -r '.iac_repo_url // empty' "$CONFIG_PATH")"
   local repo_branch
