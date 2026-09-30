@@ -21,6 +21,9 @@ export DOCKER_CONTEXT=default
 DOCKERCOMPOSE="${SCRIPT_DIR}/docker-compose-host-paths.sh"
 MERGECONFIGS="${SCRIPT_DIR}/merge-configs.sh"
 
+# shellcheck source=system-json.sh
+source "${SCRIPT_DIR}/system-json.sh"
+
 set_error() {
   echo "Error: $*" >&2
   set_state \
@@ -256,7 +259,7 @@ apply_system_json_if_changed() {
     need_update_ca_certs=1
   fi
 
-  if echo "${merged_config}" | are_json_files_different "-" "${CONFIG_PATH}"; then
+  if system_json_would_change "${merged_config}" "${CONFIG_PATH}"; then
     if [[ "${SYSTEM_TYPE}" == "cuos" ]]; then
       report "Info: Applying new system.json via socket..."
       local update_res
