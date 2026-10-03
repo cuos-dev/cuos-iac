@@ -10,7 +10,7 @@ function Stat({ val, label, minor }) {
   );
 }
 
-export function Topbar({ online, offline, outdated, problems, ok, name }) {
+export function Topbar({ online, offline, outdated, problems, ok, name, user }) {
   const { pref, cycle } = useTheme();
   const themeIcon  = { system: 'ti-device-desktop', light: 'ti-sun', dark: 'ti-moon' }[pref];
   const themeLabel = { system: 'System', light: 'Light', dark: 'Dark' }[pref];
@@ -41,6 +41,7 @@ export function Topbar({ online, offline, outdated, problems, ok, name }) {
           <div class="topbar-stat-val">{now}</div>
           <div class="topbar-stat-label">local time</div>
         </div>
+        {user && <div class="topbar-stat topbar-user" title={`Signed in as ${user.name}`}><div class="topbar-stat-val" style="font-size:13px">{user.name}</div><div class="topbar-stat-label">{user.role}</div></div>}
         <button class="theme-toggle" onClick={cycle} title={`Theme: ${themeLabel} (click to change)`} aria-label={`Theme: ${themeLabel}. Click to change`}>
           <i class={`ti ${themeIcon}`} />
         </button>

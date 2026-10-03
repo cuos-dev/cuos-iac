@@ -30,7 +30,7 @@ function MiniBar({ val, label }) {
   );
 }
 
-export function DeviceRow({ device: d, latestCuos, latestAgent, meta }) {
+export function DeviceRow({ device: d, latestCuos, latestAgent, meta, canAct }) {
   const [open, setOpen]       = useState(false);
   const { run, pending, done, error } = useAction();
   const offline = d.status === 'offline';
@@ -89,9 +89,9 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta }) {
         <td><span class={`last-seen ${fmt.lastSeenClass(d.last_seen)}`}>{fmt.relative(d.last_seen)}</span></td>
         <td onClick={e => e.stopPropagation()}>
           <div class="action-cell">
-            <button class={btnCls} onClick={() => run(`/api/clients/${d.id}/update`)} disabled={offline || busy} title={error || undefined}>
+            {canAct && <button class={btnCls} onClick={() => run(`/api/clients/${d.id}/update`)} disabled={offline || busy} title={error || undefined}>
               <i class={`ti ${btnIcon}`} /> {btnLabel}
-            </button>
+            </button>}
             <button class="tbl-btn" onClick={() => setOpen(x => !x)}>
               <i class={`ti ${open ? 'ti-chevron-up' : 'ti-info-circle'}`} />
             </button>

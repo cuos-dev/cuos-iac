@@ -13,6 +13,8 @@ fs.rmSync(data, { recursive: true, force: true });          // fresh database ev
 const env = {
   ...process.env, FLEET_DATA_DIR: data, FLEET_SERVER_PORT: '8085', FLEET_SECRET: 'dev-fleet-secret',
   FLEET_VM_URL: 'http://127.0.0.1:18428', FLEET_VL_URL: 'http://127.0.0.1:18428',
+  FLEET_USERS_FILE: path.join(root, 'dev', 'users.json'),
+  FLEET_API_KEYS: 'dev-admin-key', FLEET_API_KEYS_READONLY: 'dev-ro-key',
   FLEET_LATEST_CUOS: '2026.10.1', FLEET_LATEST_AGENT: '0.5.2',
 };
 

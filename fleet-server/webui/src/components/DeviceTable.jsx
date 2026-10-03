@@ -12,7 +12,7 @@ const SORTS = {
   attention: (a, b) => rank(a) - rank(b) || SORTS.name(a, b),
 };
 
-export function DeviceTable({ devices, latestCuos, latestAgent, meta, filter, search, onFilter, onSearch }) {
+export function DeviceTable({ devices, latestCuos, latestAgent, meta, canAct, filter, search, onFilter, onSearch }) {
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState('name');
 
@@ -75,14 +75,14 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, filter, se
               <th style="width:135px" class="col-cpu">CPU / RAM / Disk</th>
               <th style="width:80px" class="col-uptime">Uptime</th>
               <th style="width:90px">Last seen</th>
-              <th style="width:145px">Actions</th>
+              <th style="width:145px">{canAct ? 'Actions' : 'Details'}</th>
             </tr>
           </thead>
           <tbody>
             {pageRows.length === 0
               ? <tr><td colspan="10" class="empty-row">No devices match filter</td></tr>
               : pageRows.map(d => (
-                  <DeviceRow key={d.id} device={d} latestCuos={latestCuos} latestAgent={latestAgent} meta={meta} />
+                  <DeviceRow key={d.id} device={d} latestCuos={latestCuos} latestAgent={latestAgent} meta={meta} canAct={canAct} />
                 ))
             }
           </tbody>

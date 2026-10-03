@@ -9,6 +9,7 @@ import fs from 'fs';
 import { parse as parseBasicAuth } from 'basic-auth';
 import Database from 'better-sqlite3';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
 const PORT          = process.env.FLEET_SERVER_PORT  || 8085;
 const WS_SECRET     = process.env.FLEET_SECRET       || 'changeme';
@@ -117,24 +118,94 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+// behind a reverse proxy set FLEET_TRUST_PROXY (true, a hop count or a subnet name) so req.ip is the client, not the proxy
+if (process.env.FLEET_TRUST_PROXY) {
+  const t = process.env.FLEET_TRUST_PROXY;
+  app.set('trust proxy', t === 'true' ? true : /^\d+$/.test(t) ? Number(t) : t);
+}
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use('/ui', express.static(path.join(__dirname, 'webui/dist')));
 
-// Auth — Basic Auth for browser, Bearer token for automation (3.3)
-const ADMIN_USER = process.env.FLEET_ADMIN_USER || 'admin';
-const ADMIN_PASS = process.env.FLEET_ADMIN_PASS || 'admin';
+// --- Auth: Basic Auth for browsers, Bearer keys for automation ---------------------------------
+// Users come from FLEET_USERS_FILE (default: <data dir>/users.json), a JSON array of
+//   { "name": "...", "password": "<bcrypt hash or plain text>", "role": "admin" | "viewer" }
+// FLEET_ADMIN_USER / FLEET_ADMIN_PASS still work and are an admin. A user without a role is a
+// viewer (least privilege); an unknown role is rejected, never promoted.
+// FLEET_API_KEYS are admin keys, FLEET_API_KEYS_READONLY are viewer keys.
+const ROLES = new Set(['admin', 'viewer']);
+const warn = msg => console.warn(JSON.stringify({ level: 'warn', msg }));
+const sha = v => crypto.createHash('sha256').update(String(v)).digest();
+const safeEq = (a, b) => crypto.timingSafeEqual(sha(a), sha(b));
+const isHash = p => /^\$2[aby]\$/.test(p);
+const keySet = name => new Set((process.env[name] || '').split(',').filter(Boolean));
+const API_KEYS = keySet('FLEET_API_KEYS');
+const API_KEYS_READONLY = keySet('FLEET_API_KEYS_READONLY');
+
+function loadUsers() {
+  const users = [];
+  const add = (u, origin) => {
+    const role = u?.role ?? 'viewer';
+    if (!u?.name || !u?.password || !ROLES.has(role)) return warn(`ignoring invalid user entry in ${origin}`);
+    if (users.some(x => x.name === u.name)) return warn(`ignoring duplicate user "${u.name}" in ${origin}`);
+    users.push({ name: String(u.name), password: String(u.password), role });
+  };
+  const file = process.env.FLEET_USERS_FILE || path.join(DATA_DIR, 'users.json');
+  if (fs.existsSync(file)) {
+    try { JSON.parse(fs.readFileSync(file, 'utf8')).forEach(u => add(u, file)); }
+    catch (e) { console.error(JSON.stringify({ level: 'error', msg: `cannot read ${file}`, error: e.message })); process.exit(1); }
+  }
+  if (process.env.FLEET_ADMIN_USER || process.env.FLEET_ADMIN_PASS || !users.length) {
+    add({ name: process.env.FLEET_ADMIN_USER || 'admin', password: process.env.FLEET_ADMIN_PASS || 'admin', role: 'admin' }, 'FLEET_ADMIN_*');
+  }
+  if (!users.some(u => u.role === 'admin')) warn('no admin user configured: nobody can trigger updates');
+  return users;
+}
+const USERS = loadUsers();
+if (WS_SECRET === 'changeme') warn('FLEET_SECRET is the default "changeme": agents can be impersonated, set your own');
+if (USERS.some(u => u.name === 'admin' && u.password === 'admin')) warn('the admin user still has the default password "admin": set FLEET_ADMIN_PASS or a users file');
+
+const DUMMY_HASH = bcrypt.hashSync('not-a-password', 10);   // keeps timing similar for unknown users
+function checkCreds(cred) {
+  if (!cred) return null;
+  const user = USERS.find(u => u.name === cred.name);
+  if (!user) { bcrypt.compareSync(cred.pass, DUMMY_HASH); return null; }
+  const ok = isHash(user.password) ? bcrypt.compareSync(cred.pass, user.password) : safeEq(cred.pass, user.password);
+  return ok ? user : null;
+}
+
+// Slow down password guessing: 10 failures per client address and 5 minutes, then 429.
+const failures = new Map();   // ip -> { n, since }
+const WINDOW = 5 * 60_000, MAX_FAILS = 10;
+const tooMany = ip => { const f = failures.get(ip); if (!f) return false; if (Date.now() - f.since > WINDOW) { failures.delete(ip); return false; } return f.n >= MAX_FAILS; };
+const failed = ip => { const f = failures.get(ip); if (!f || Date.now() - f.since > WINDOW) failures.set(ip, { n: 1, since: Date.now() }); else f.n++; };
+
 // basic-auth v3 takes the header string (v2 took the request) and throws on a missing header
 const auth = req => (req.headers.authorization ? parseBasicAuth(req.headers.authorization) : undefined);
-const API_KEYS = new Set((process.env.FLEET_API_KEYS || '').split(',').filter(Boolean));
-function requireAuth(req, res, next) {
-  const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
-  if (bearer && API_KEYS.has(bearer[1])) return next();
-  const creds = auth(req);
-  if (creds && creds.name === ADMIN_USER && creds.pass === ADMIN_PASS) return next();
-  res.set('WWW-Authenticate', 'Basic realm="Fleet"');
-  return res.status(401).json({ error: 'unauthorized' });
+
+function authenticate(minRole) {
+  return (req, res, next) => {
+    if (tooMany(req.ip)) return res.status(429).json({ error: 'too_many_attempts' });
+    let user = null;
+    const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
+    if (bearer) {
+      if ([...API_KEYS].some(k => safeEq(k, bearer[1]))) user = { name: 'api-key', role: 'admin' };
+      else if ([...API_KEYS_READONLY].some(k => safeEq(k, bearer[1]))) user = { name: 'api-key (read-only)', role: 'viewer' };
+    } else {
+      const cred = auth(req);
+      user = checkCreds(cred);
+      if (cred && !user) failed(req.ip);       // a missing header is the browser's first request, not a failure
+    }
+    if (!user) { res.set('WWW-Authenticate', 'Basic realm="Fleet"'); return res.status(401).json({ error: 'unauthorized' }); }
+    if (minRole === 'admin' && user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
+    req.user = user;
+    next();
+  };
 }
+const requireAuth = authenticate('viewer');     // any signed-in user, read access
+const requireAdmin = authenticate('admin');     // triggers updates
+
+// the UI itself is behind the login too (it used to be served to anyone)
+app.use('/ui', requireAuth, express.static(path.join(__dirname, 'webui/dist')));
 
 // Webhooks (3.2)
 const WEBHOOK_URL = process.env.FLEET_WEBHOOK_URL;
@@ -151,7 +222,7 @@ function fireWebhook(event, device) {
 // Ingest proxy — agents push through fleet-server; VM/VL stay internal
 app.post('/api/ingest/metrics', express.raw({ type: '*/*', limit: '2mb' }), (req, res) => {
   const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
-  if (!bearer || bearer[1] !== WS_SECRET) return res.status(401).end();
+  if (!bearer || !safeEq(bearer[1], WS_SECRET)) return res.status(401).end();
   if (!FLEET_VM_URL) return res.status(503).end();
   fetch(`${FLEET_VM_URL}/api/v1/import/prometheus`, { method: 'POST', body: req.body })
     .then(r => res.status(r.status).end())
@@ -160,7 +231,7 @@ app.post('/api/ingest/metrics', express.raw({ type: '*/*', limit: '2mb' }), (req
 
 app.post('/api/ingest/logs', express.raw({ type: '*/*', limit: '4mb' }), (req, res) => {
   const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
-  if (!bearer || bearer[1] !== WS_SECRET) return res.status(401).end();
+  if (!bearer || !safeEq(bearer[1], WS_SECRET)) return res.status(401).end();
   if (!FLEET_VL_URL) return res.status(503).end();
   fetch(`${FLEET_VL_URL}/insert/jsonline`, {
     method: 'POST',
@@ -206,7 +277,7 @@ app.get('/api/logs/:id', requireAuth, async (req, res) => {
   if (!FLEET_VL_URL) return res.status(503).json({ error: 'not_configured' });
   const c = clients[req.params.id];
   if (!c) return res.status(404).json({ error: 'not_found' });
-  const base = `hostname:${c.hostname}`;
+  const base = `hostname:${JSON.stringify(String(c.hostname))}`;
   const q = req.query.q ? `${base} AND (${req.query.q})` : base;
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   try {
@@ -230,7 +301,7 @@ app.get('/api/logs/:id/stream', requireAuth, (req, res) => {
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
   res.flushHeaders();
   const userFilter = req.query.q ? ` AND (${req.query.q})` : '';
-  const query = `hostname:${c.hostname}${userFilter}`;
+  const query = `hostname:${JSON.stringify(String(c.hostname))}${userFilter}`;
   let since = new Date(Date.now() - 60_000).toISOString();
   async function poll() {
     try {
@@ -253,7 +324,7 @@ app.get('/api/logs/:id/stream', requireAuth, (req, res) => {
 });
 
 // Bulk update trigger
-app.post('/api/bulk-update', requireAuth, (req, res) => {
+app.post('/api/bulk-update', requireAdmin, (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids must be array' });
   const triggered = [], offline = [];
@@ -266,7 +337,7 @@ app.post('/api/bulk-update', requireAuth, (req, res) => {
 });
 
 // Trigger update
-app.post('/api/clients/:id/update', requireAuth, (req, res) => {
+app.post('/api/clients/:id/update', requireAdmin, (req, res) => {
   const id = req.params.id;
   const c = clients[id];
   if (!c) return res.status(404).json({ error: 'not_found' });
@@ -285,7 +356,7 @@ app.get('/api/clients/:id/direct', requireAuth, (req, res) => {
   res.json({ url });
 });
 
-app.get('/api/meta', requireAuth, (req, res) => res.json({ wsNonce: UI_WS_NONCE, hasVm: !!FLEET_VM_URL, hasVl: !!FLEET_VL_URL, name: process.env.FLEET_NAME || null }));
+app.get('/api/meta', requireAuth, (req, res) => res.json({ user: { name: req.user.name, role: req.user.role }, wsNonce: UI_WS_NONCE, hasVm: !!FLEET_VM_URL, hasVl: !!FLEET_VL_URL, name: process.env.FLEET_NAME || null }));
 app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
 app.get('/ui/*path', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'webui/dist/index.html')));
 
@@ -302,9 +373,12 @@ function broadcastState() {
 
 server.on('upgrade', (req, socket, head) => {
   const parts = new URL(req.url, `http://${req.headers.host}`).pathname.split('/').filter(Boolean);
-  if (parts.length === 2 && parts[0] === 'ws' && parts[1] === WS_SECRET) {
+  const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
+  const agentOk = (parts.length === 1 && parts[0] === 'ws' && bearer && safeEq(bearer[1], WS_SECRET))
+    || (parts.length === 2 && parts[0] === 'ws' && safeEq(parts[1], WS_SECRET));   // legacy: secret in the URL ends up in proxy logs
+  if (agentOk) {
     wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
-  } else if (parts.length === 2 && parts[0] === 'ui-ws' && parts[1] === UI_WS_NONCE) {
+  } else if (parts.length === 2 && parts[0] === 'ui-ws' && safeEq(parts[1], UI_WS_NONCE)) {
     uiWss.handleUpgrade(req, socket, head, ws => {
       uiConnections.add(ws);
       ws.send(JSON.stringify({ type: 'state', devices: Object.values(clients), config: { latestCuos: LATEST_CUOS, latestAgent: LATEST_AGENT } }));
@@ -332,6 +406,7 @@ wss.on('connection', (ws) => {
         protocol_version = 1
       } = msg;
       if (!uuid || typeof uuid !== 'string') return;
+      if (!/^[A-Za-z0-9._-]{1,64}$/.test(uuid)) { ws.close(1008, 'invalid uuid'); return; }
       const now = new Date().toISOString();
       clients[uuid] = {
         id: uuid, hostname, cuos_version, agent_version, tags, repo_url, repo_branch, protocol_version,

@@ -8,6 +8,7 @@ import { DeviceTable } from './components/DeviceTable.jsx';
 
 export function App() {
   const { devices, config, meta, ok } = useFleet();
+  const canAct = meta?.user?.role === 'admin';   // the server enforces this too; this only hides what would be refused
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -22,7 +23,7 @@ export function App() {
 
   return (
     <>
-      <Topbar online={online} offline={offline} outdated={outdated} problems={problems} ok={ok} name={meta?.name} />
+      <Topbar online={online} offline={offline} outdated={outdated} problems={problems} ok={ok} name={meta?.name} user={meta?.user} />
       <div class="main">
         <SummaryCards total={devices.length} online={online} offline={offline} outdated={outdated} updating={updating} problems={problems} />
         <DeviceTable
@@ -30,6 +31,7 @@ export function App() {
           latestCuos={latestCuos}
           latestAgent={latestAgent}
           meta={meta}
+          canAct={canAct}
           filter={filter}
           search={search}
           onFilter={setFilter}

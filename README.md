@@ -222,6 +222,23 @@ include:
 | `fleet_tags` | `[]` | Labels this device carries, for grouping. |
 | `fleet_uuid` | generated | Pin the device's identity; otherwise one is generated into `/data/state_fleet_uuid`. |
 
+The server is configured through environment variables:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `FLEET_SECRET` | `changeme` | The agents' shared secret. The server warns while it is the default. |
+| `FLEET_USERS_FILE` | `<data dir>/users.json` | JSON array of `{ "name", "password", "role" }`. `role` is `admin` (may trigger updates) or `viewer` (read only); no role means `viewer`. Passwords may be bcrypt hashes (`$2b$…`) or plain text. |
+| `FLEET_ADMIN_USER`, `FLEET_ADMIN_PASS` | `admin` / `admin` | Still work and are an admin. The server warns while the password is the default. |
+| `FLEET_API_KEYS` | — | Comma separated bearer keys for automation, with admin rights. |
+| `FLEET_API_KEYS_READONLY` | — | The same, read only. |
+| `FLEET_TRUST_PROXY` | off | Behind a reverse proxy set `true` (or a hop count), otherwise every client looks like the proxy. |
+| `FLEET_NAME` | — | Shown next to the title, e.g. `production`. |
+
+The roles are enforced by the server. After 10 wrong passwords from one address,
+logins from it are refused for five minutes. The UI is served only to signed-in
+users. Agents send the secret as a bearer header; the older form with the secret
+in the URL (`/ws/<secret>`) is still accepted, but ends up in proxy logs.
+
 ## Optional: Dev-Container
 
 `dev-container/` — an SSH login on the running system, for what cannot be fixed
