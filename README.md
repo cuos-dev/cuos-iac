@@ -222,6 +222,11 @@ include:
 | `fleet_tags` | `[]` | Labels this device carries, for grouping. |
 | `fleet_uuid` | generated | Pin the device's identity. It wins over a stored one and survives a lost `/data`. Otherwise one is generated into `/data/state_fleet_uuid`; without a persistent `/data` the device then shows up as a new one after every restart, and the agent says so in its log. |
 | `fleet_share` | see below | What this device tells the server. |
+| `fleet_log_units` | `[]` | systemd units whose journal is forwarded, when `fleet_share.logs` contains `"system"`. |
+| `enable_fleet` | `true` | `false` stops the agent at start. |
+| `heartbeat_interval_sec` | `30` | How often the agent says it is alive. |
+| `metrics_interval_sec` | `60` | How often it reports load. |
+| `hostname` | — | The name shown for the device. Falls back to `system_name`, then `iac_repo_subdir`, then `unknown`. |
 
 `fleet_share` is the owner's privacy setting. Nothing outside of it leaves the device, the choice
 is announced to the server, and the server's UI shows what is not available:
@@ -261,6 +266,9 @@ The server is configured through environment variables:
 | `FLEET_API_KEYS_READONLY` | — | The same, read only (no device logs). |
 | `FLEET_TRUST_PROXY` | off | Behind a reverse proxy set `true` (or a hop count), otherwise every client looks like the proxy. |
 | `FLEET_NAME` | — | Shown next to the title, e.g. `production`. |
+| `FLEET_LATEST_CUOS`, `FLEET_LATEST_AGENT` | highest reported | The versions the UI counts as current; devices on another one are marked outdated. |
+| `FLEET_WEBHOOK_URL` | — | Receives a JSON `POST` (`event`, `device`, `ts`) when something happens. |
+| `FLEET_WEBHOOK_EVENTS` | `device_online,device_offline,device_pending,update_success,update_failed` | Comma separated: which events are sent. |
 | `FLEET_RETENTION_DAYS` | `30` | How long load history is kept. |
 | `FLEET_LOG_RETENTION_DAYS` | `7` | How long device logs are kept. |
 | `FLEET_LOG_MAX_ROWS` | `20000` | Log lines kept per device, newest first. |
