@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 .table-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); overflow: hidden;

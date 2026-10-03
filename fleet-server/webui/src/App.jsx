@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { useState } from 'preact/hooks';
 import { useFleet } from './hooks/useFleet.js';
 import { computeLatest, isOutdated } from './lib/version.js';

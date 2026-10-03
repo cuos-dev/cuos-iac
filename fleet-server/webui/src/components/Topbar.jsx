@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { useState, useEffect } from 'preact/hooks';
 import { useTheme } from '../lib/theme.js';
 

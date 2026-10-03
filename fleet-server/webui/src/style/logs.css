@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 .log-stream { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .log-header {
   display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;

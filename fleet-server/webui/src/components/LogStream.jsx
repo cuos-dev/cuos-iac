@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 const LEVELS = [['', 'all levels'], ['4', 'warnings and errors'], ['3', 'errors only']];

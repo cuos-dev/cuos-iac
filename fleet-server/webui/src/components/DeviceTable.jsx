@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { useState } from 'preact/hooks';
 import { isOutdated } from '../lib/version.js';
 import { hasProblem, hasRequest } from '../lib/status.js';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 export function computeLatest(devices, field) {
   return devices.reduce((max, d) => {
     const v = d[field];

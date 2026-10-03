@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // iac_state comes from the device (iac/entrypoint.sh): running | updating | starting, anything
 // else ("pull repo failed", "docker compose failed", ...) is a failure.
 export function iacHealth(state) {

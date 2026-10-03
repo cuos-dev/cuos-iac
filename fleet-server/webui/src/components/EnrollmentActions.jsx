@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { useAction } from '../hooks/useAction.js';
 
 // approve / reject for a device that waits at the door; only meaningful for admins

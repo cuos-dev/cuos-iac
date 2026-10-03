@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # Fleet Server — one container, one volume. History and logs live in a SQLite database in /data.
 #
 #   docker compose up -d --build

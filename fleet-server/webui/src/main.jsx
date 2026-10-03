@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { render } from 'preact';
 import { App } from './App.jsx';
 import '@fontsource/sora/400.css';
