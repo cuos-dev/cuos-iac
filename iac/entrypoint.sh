@@ -387,7 +387,7 @@ counter=0
 
 perform_update() {
   set_state '.last_iac_update_check = (now | todate)'
-  > "${PROGRESS_FILE}"
+  : > "${PROGRESS_FILE}"          # start a fresh progress log
 
   emit_progress "clone_repo" "in_progress"
   clone_or_pull_repo
