@@ -26,7 +26,7 @@ function Ports({ ports }) {
   );
 }
 
-export default function ContainersPanel({ ps = [], sendAction }) {
+export default function ContainersPanel({ ps = [], sendAction, canAct }) {
   const [expanded, setExpanded] = useState(null);
   const [rowBusy, setRowBusy]   = useState({});
   const [rowMsg, setRowMsg]     = useState({});
@@ -128,18 +128,22 @@ export default function ContainersPanel({ ps = [], sendAction }) {
                           <div class="expand-group expand-actions" style="grid-column:1/-1;">
                             {rowMsg[name] && <span class="row-msg">{rowMsg[name]}</span>}
                             {rowBusy[name] && <i class="ti ti-loader-2 spin" />}
+                            {canAct && <>
                             <button class="btn-sm" onClick={e => { e.stopPropagation(); rowAction(name, 'docker:restart'); }}>
                               <i class="ti ti-refresh" /> Restart
                             </button>
                             <button class="btn-sm" onClick={e => { e.stopPropagation(); rowAction(name, isUp ? 'docker:stop' : 'docker:start'); }}>
                               <i class={`ti ${isUp ? 'ti-player-stop' : 'ti-player-play'}`} /> {isUp ? 'Stop' : 'Start'}
                             </button>
+                            </>}
                             <button class="btn-sm" onClick={e => { e.stopPropagation(); showLogs(name); }}>
                               <i class="ti ti-file-description" /> Logs
                             </button>
+                            {canAct && (
                             <button class="btn-sm danger" onClick={e => { e.stopPropagation(); confirm(`Remove ${name}?`) && rowAction(name, 'docker:remove'); }}>
                               <i class="ti ti-trash" /> Remove
                             </button>
+                            )}
                           </div>
                         </div>
                       </td>

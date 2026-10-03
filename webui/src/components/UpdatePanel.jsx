@@ -34,7 +34,7 @@ function ProgressSteps({ steps }) {
   );
 }
 
-export default function UpdatePanel({ appState = {}, config = {}, progress, sendAction }) {
+export default function UpdatePanel({ appState = {}, config = {}, progress, sendAction, canAct }) {
   const [triggering, setTriggering] = useState(false);
   const [now, setNow] = useState(Date.now());
 
@@ -95,7 +95,8 @@ export default function UpdatePanel({ appState = {}, config = {}, progress, send
             Branch: <strong>{config.iac_repo_branch || appState.iac_branch || '—'}</strong>
           </div>
           {(isUpdating || failed) && steps && <ProgressSteps steps={steps} />}
-          {!(isUpdating && steps) &&
+          {!canAct && !isUpdating && <div class="readonly-note"><i class="ti ti-eye" /> Read-only access</div>}
+          {canAct && !(isUpdating && steps) &&
             <button class="btn-update" onClick={triggerUpdate} disabled={isUpdating}>
                 <i class={`ti ${isUpdating ? 'ti-loader-2 spin' : 'ti-refresh'}`} />
                 {isUpdating ? 'Updating…' : failed ? 'Retry update' : 'Trigger update now'}

@@ -4,6 +4,7 @@ import { parse as parseBasicAuth } from 'basic-auth';
 import net from 'net';
 import os from 'os';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import bcrypt from 'bcrypt';
@@ -12,17 +13,39 @@ import { WebSocketServer } from 'ws';
 // overridable so the UI can run against a mock (see dev/)
 const IAC_SOCKET_PATH = process.env.IAC_SOCKET_PATH || '/socket/cuos-iac.sock';
 const SYSTEM_JSON     = process.env.SYSTEM_JSON     || '/system.json';
-let USER = 'admin', PASS = 'admin';
-
 let config = {};
 try {
   config = JSON.parse(await fs.readFile(SYSTEM_JSON, 'utf8'));
-  if (config.iac_user && config.iac_password) { USER = config.iac_user; PASS = config.iac_password; }
-  else console.warn('system.json missing iac_user/iac_password, using defaults');
 } catch (e) {
   if (e.code !== 'ENOENT') { console.error('Error reading system.json:', e.message); process.exit(1); }
   console.warn('system.json not found, using defaults');
 }
+
+// --- users and roles ---
+// system.json: "iac_users": [{ "name": "...", "password": "<bcrypt hash or plain>", "role": "admin" | "viewer" }]
+// The older "iac_user" / "iac_password" pair still works and is an admin. A user without a
+// role is a viewer (least privilege); an unknown role is rejected, never promoted.
+const ROLES = new Set(['admin', 'viewer']);
+
+function loadUsers(cfg) {
+  const users = [];
+  const add = (u, origin) => {
+    const role = u?.role ?? 'viewer';
+    if (!u?.name || !u?.password || !ROLES.has(role)) { console.warn(`ignoring invalid user entry in ${origin}`); return; }
+    if (users.some(x => x.name === u.name)) { console.warn(`ignoring duplicate user "${u.name}" in ${origin}`); return; }
+    users.push({ name: String(u.name), password: String(u.password), role });
+  };
+  if (Array.isArray(cfg.iac_users)) cfg.iac_users.forEach(u => add(u, 'iac_users'));
+  if (cfg.iac_user && cfg.iac_password) add({ name: cfg.iac_user, password: cfg.iac_password, role: 'admin' }, 'iac_user');
+  if (!users.length) {
+    console.warn('system.json has no usable users (iac_users / iac_user+iac_password), using admin/admin');
+    users.push({ name: 'admin', password: 'admin', role: 'admin' });
+  } else if (!users.some(u => u.role === 'admin')) {
+    console.warn('no admin user configured: every action will be refused');
+  }
+  return users;
+}
+const USERS = loadUsers(config);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,14 +55,24 @@ app.use(express.static(path.join(__dirname, 'dist')));
 // basic-auth v3 takes the header string (v2 took the request) and throws on a missing header
 const basicAuth = req => (req.headers.authorization ? parseBasicAuth(req.headers.authorization) : undefined);
 
-function checkCreds(user) {
-  if (!user || user.name !== USER) return false;
-  const isHash = PASS.startsWith('$2b$') || PASS.startsWith('$2a$') || PASS.startsWith('$2y$');
-  return isHash ? bcrypt.compareSync(user.pass, PASS) : user.pass === PASS;
+const isHash = p => /^\$2[aby]\$/.test(p);
+const sha = v => crypto.createHash('sha256').update(v).digest();
+const DUMMY_HASH = bcrypt.hashSync('not-a-password', 10);   // keeps timing similar for unknown users
+
+// returns the matching user or null
+function checkCreds(cred) {
+  if (!cred) return null;
+  const user = USERS.find(u => u.name === cred.name);
+  if (!user) { bcrypt.compareSync(cred.pass, DUMMY_HASH); return null; }
+  const ok = isHash(user.password)
+    ? bcrypt.compareSync(cred.pass, user.password)
+    : crypto.timingSafeEqual(sha(cred.pass), sha(user.password));
+  return ok ? user : null;
 }
 
 function auth(req, res, next) {
-  if (checkCreds(basicAuth(req))) return next();
+  const user = checkCreds(basicAuth(req));
+  if (user) { req.user = user; return next(); }
   res.set('WWW-Authenticate', 'Basic realm="cuos"');
   res.status(401).send('Authentication required.');
 }
@@ -139,6 +172,7 @@ app.use(auth);
 app.get('/api/config', (req, res) => {
   const rawUrl = config.iac_repo_url || '';
   res.json({
+    user: { name: req.user.name, role: req.user.role },
     locale: process.env.LOCALE || 'de-DE',
     tz: process.env.TZ || 'Europe/Berlin',
     iac_poll_interval: config.iac_poll_interval || 21600,
@@ -155,6 +189,10 @@ const ALLOWED = new Set([
   'docker:logs', 'docker:remove', 'docker:version', 'compose:file', 'ps',
 ]);
 
+// Everything in ALLOWED is for admins; viewers get the read-only subset.
+const VIEWER_ALLOWED = new Set(['ps', 'docker:version', 'docker:logs']);
+const permitted = (role, command) => ALLOWED.has(command) && (role === 'admin' || VIEWER_ALLOWED.has(command));
+
 app.use((_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 
 // --- server + WebSocket ---
@@ -165,12 +203,13 @@ const wss = new WebSocketServer({ noServer: true });
 
 // ponytail: browsers forward cached basic-auth on same-origin WS upgrades; check it here
 server.on('upgrade', (req, socket, head) => {
-  if (!checkCreds(basicAuth(req))) {
+  const user = checkCreds(basicAuth(req));
+  if (!user) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
     socket.destroy();
     return;
   }
-  wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws));
+  wss.handleUpgrade(req, socket, head, ws => { ws.user = user; wss.emit('connection', ws); });
 });
 
 wss.on('connection', ws => {
@@ -185,6 +224,11 @@ wss.on('connection', ws => {
     if (msg.type !== 'action') return;
     const { id, command, type: _, ...data } = msg;
     if (!ALLOWED.has(command)) { ws.send(JSON.stringify({ type: 'action_result', id, error: 'unknown command' })); return; }
+    if (!permitted(ws.user.role, command)) {
+      console.warn(`denied: ${ws.user.name} (${ws.user.role}) tried ${command}`);
+      ws.send(JSON.stringify({ type: 'action_result', id, command, error: 'forbidden' }));
+      return;
+    }
     try {
       const result = await iacApi(command, data);
       ws.send(JSON.stringify({ type: 'action_result', id, command, result }));

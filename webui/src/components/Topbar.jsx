@@ -3,7 +3,7 @@ import { iacHealth } from '../lib/status.js';
 import { useTheme } from '../lib/theme.js';
 import '../style/topbar.css';
 
-export default function Topbar({ hostname, iacState, connected }) {
+export default function Topbar({ hostname, iacState, connected, user }) {
   const [time, setTime] = useState('');
   const { pref, cycle } = useTheme();
   const themeIcon  = { system: 'ti-device-desktop', light: 'ti-sun', dark: 'ti-moon' }[pref];
@@ -29,7 +29,8 @@ export default function Topbar({ hostname, iacState, connected }) {
       </div>
       <div class="topbar-meta">
         <span><span class={`status-dot ${dotCls}`} />{label}</span>
-        <span>{time}</span>
+        <span class="topbar-clock">{time}</span>
+        {user && <span class="topbar-user" title={`Signed in as ${user.name}`}><i class="ti ti-user" /> {user.name}{user.role !== 'admin' && <span class="badge badge-gray" style="margin-left:6px;">{user.role}</span>}</span>}
         <button class="theme-toggle" onClick={cycle} title={`Theme: ${themeLabel} (click to change)`} aria-label={`Theme: ${themeLabel}. Click to change`}>
           <i class={`ti ${themeIcon}`} />
         </button>

@@ -11,6 +11,7 @@ export default function App() {
   const { state, logs, connected, sendAction } = useWebSocket();
   const { cuosState, resources, ps, appState, progress, system } = state ?? {};
   const [config, setConfig] = useState({});
+  const canAct = config.user?.role === 'admin';   // the backend enforces this too; this only hides what would be refused
 
   useEffect(() => {
     fetch('/api/config')
@@ -21,15 +22,16 @@ export default function App() {
 
   return (
     <>
-      <Topbar hostname={system?.hostname} iacState={appState?.iac_state} connected={connected} />
+      <Topbar hostname={system?.hostname} iacState={appState?.iac_state} connected={connected} user={config.user} />
       <div class={`layout${connected ? '' : ' stale'}`}>
         <UpdatePanel
           appState={appState ?? {}}
           config={config}
           progress={progress}
           sendAction={sendAction}
+          canAct={canAct}
         />
-        <ContainersPanel ps={ps ?? []} sendAction={sendAction} />
+        <ContainersPanel ps={ps ?? []} sendAction={sendAction} canAct={canAct} />
         <LogsPanel logs={logs} />
         <Sidebar
           cuosState={cuosState}
@@ -39,6 +41,7 @@ export default function App() {
           config={config}
           ps={ps ?? []}
           sendAction={sendAction}
+          canAct={canAct}
         />
       </div>
     </>

@@ -204,6 +204,23 @@ include:
   - path: ./cuos-release/cuos-iac-webui/docker-compose.yml
 ```
 
+Users are read from `system.json`. Each has a role: an `admin` can trigger updates, run
+the CuOS actions and manage containers; a `viewer` can only look (state, containers,
+the logs and a container's logs). The roles are enforced by the server, not just hidden
+in the page.
+
+```json
+"iac_users": [
+  { "name": "alice", "password": "<bcrypt hash or plain text>", "role": "admin" },
+  { "name": "bob",   "password": "<bcrypt hash or plain text>", "role": "viewer" }
+]
+```
+
+A user without a `role` is a `viewer`; an unknown role is ignored. The older pair
+`iac_user` / `iac_password` still works and is an admin. Without any user the WebUI
+falls back to `admin` / `admin` and says so in its log. Prefer bcrypt hashes
+(`$2b$…`) over plain text, as `system.json` is part of the repository.
+
 ## Optional: Fleet
 
 `fleet-agent/` runs on each device and connects to `fleet-server/`, which you run
