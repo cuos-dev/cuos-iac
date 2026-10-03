@@ -83,6 +83,8 @@ function getSystem() {
 const clients = new Set();
 let lastStateSerialized = null;
 let lastLogTs = '';
+const recentLogs = [];                 // sent to clients on connect, so a reload doesn't start with an empty log
+const LOG_HISTORY = 200;
 
 function broadcast(msg) {
   const str = JSON.stringify(msg);
@@ -98,10 +100,6 @@ async function pollState() {
       resources.ram_percent  = Math.round((resources.mem_used_mb  / resources.mem_total_mb)  * 100);
       resources.disk_percent = Math.round((resources.disk_used_mb / resources.disk_total_mb) * 100);
       resources.cpu_percent  = Math.round(resources.cpu_usage ?? 0);
-      resources.ip      = resources.network?.[0]?.ip?.split('/')[0] ?? null;
-      resources.dns     = Array.isArray(resources.dns_servers) ? (resources.dns_servers[0] ?? null) : null;
-      resources.ntp     = Array.isArray(resources.ntp_servers) && resources.ntp_servers.length ? resources.ntp_servers[0] : null;
-      resources.gateway = resources.default_route_ip ?? null;
     }
     if (appState && typeof appState === 'object') {
       appState.iac_started = appState.last_iac_start ?? null;
@@ -119,10 +117,15 @@ async function pollLogs() {
   try {
     const logs = await iacApi('cuos:log');
     if (!Array.isArray(logs)) return;
-    const fresh = lastLogTs ? logs.filter(l => l.date > lastLogTs) : logs.slice(-100);
+    const fresh = lastLogTs ? logs.filter(l => l.date > lastLogTs) : logs.slice(-LOG_HISTORY);
     if (!fresh.length) return;
     lastLogTs = fresh.at(-1).date;
-    for (const l of fresh) broadcast({ type: 'log', ...tagLog(l) });
+    for (const l of fresh) {
+      const entry = { type: 'log', ...tagLog(l) };
+      recentLogs.push(entry);
+      if (recentLogs.length > LOG_HISTORY) recentLogs.shift();
+      broadcast(entry);
+    }
   } catch {}
 }
 
@@ -173,6 +176,7 @@ server.on('upgrade', (req, socket, head) => {
 wss.on('connection', ws => {
   clients.add(ws);
   if (lastStateSerialized) ws.send(lastStateSerialized); // immediate paint on connect
+  if (recentLogs.length) ws.send(JSON.stringify({ type: 'log_history', entries: recentLogs }));
   ws.on('close', () => clients.delete(ws));
   ws.on('error', () => clients.delete(ws));
   ws.on('message', async raw => {

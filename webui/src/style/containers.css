@@ -72,3 +72,33 @@
   font-family: var(--font-mono); font-size: 12px;
   color: var(--text-muted); margin-right: auto;
 }
+
+.narrow-only { display: none; }
+
+/* Narrow screens: one card per container, name + status on the first line, image below.
+   Uptime and size move into the expanded details instead of hiding off to the right. */
+@media (max-width: 640px) {
+  .container-table thead { display: none; }
+  .container-table, .container-table tbody { display: block; }
+  .container-table tbody tr:not(.expand-row) {
+    display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 22px;
+    grid-template-areas: "icon name status chev" "icon image image chev";
+    column-gap: 8px; align-items: center;
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+  }
+  .container-table tbody tr:not(.expand-row) > td { padding: 0; border: none; background: transparent !important; }
+  .container-table tbody tr:not(.expand-row) > td:nth-child(1) { grid-area: icon; padding-left: 0 !important; }
+  .container-table tbody tr:not(.expand-row) > td:nth-child(2) { grid-area: name; min-width: 0; }
+  .container-table tbody tr:not(.expand-row) > td:nth-child(3) { grid-area: image; min-width: 0; }
+  .container-table tbody tr:not(.expand-row) > td:nth-child(4) { grid-area: status; justify-self: end; }
+  .container-table tbody tr:not(.expand-row) > td:nth-child(5),
+  .container-table tbody tr:not(.expand-row) > td:nth-child(6) { display: none; }
+  .container-table tbody tr:not(.expand-row) > td:nth-child(7) { grid-area: chev; }
+  .container-table tbody tr.expanded:not(.expand-row) { background: var(--accent-light); }
+  .container-table tbody tr:last-child { border-bottom: none; }
+  .container-table tr.expand-row, .container-table tr.expand-row > td { display: block; }
+  .ct-name { overflow-wrap: anywhere; }
+  .ct-image { max-width: none; }
+  .narrow-only { display: block; }
+  .expand-actions { flex-wrap: wrap; justify-content: flex-start !important; }
+}

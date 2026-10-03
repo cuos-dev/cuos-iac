@@ -118,6 +118,12 @@ export default function ContainersPanel({ ps = [], sendAction }) {
                             <div class="val">{c.Size?.match(/virtual (.+?)\)/)?.[1] ?? c.VirtualSize ?? '—'}</div>
                             <label style="margin-top:8px;">Created</label>
                             <div class="val">{c.CreatedAt || '—'}</div>
+                            <div class="narrow-only">
+                              <label style="margin-top:8px;">Uptime</label>
+                              <div class="val">{containerUptime(c.Status) || '—'}</div>
+                              <label style="margin-top:8px;">Size</label>
+                              <div class="val">{c.Size?.split(' (')[0] || '—'}</div>
+                            </div>
                           </div>
                           <div class="expand-group expand-actions" style="grid-column:1/-1;">
                             {rowMsg[name] && <span class="row-msg">{rowMsg[name]}</span>}

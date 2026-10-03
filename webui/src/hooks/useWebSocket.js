@@ -16,6 +16,7 @@ export function useWebSocket() {
       ws.current.onmessage = e => {
         const msg = JSON.parse(e.data);
         if (msg.type === 'state')         setState(msg);
+        else if (msg.type === 'log_history') setLogs(msg.entries.slice(-200));
         else if (msg.type === 'log')      setLogs(prev => [...prev, msg].slice(-200));
         else if (msg.type === 'action_result') {
           const p = pending.current.get(msg.id);

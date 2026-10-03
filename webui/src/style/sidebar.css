@@ -109,3 +109,8 @@
   color: var(--text-primary); line-height: 1.6;
   display: block;
 }
+
+.routes { margin-top: 10px; font-size: 12px; }
+.routes summary { cursor: pointer; color: var(--text-secondary); font-weight: 500; }
+.routes ul { margin: 6px 0 0; padding: 0; list-style: none; font-family: var(--font-mono); font-size: 11px; line-height: 1.7; color: var(--text-secondary); word-break: break-word; }
+.route-kw { color: var(--accent); }

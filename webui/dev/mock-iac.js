@@ -39,7 +39,7 @@ const logs = [];         // {date,level,message}; iac lines carry the "[cuos-iac
 
 function log(level, message) { logs.push({ date: iso(), level, message }); if (logs.length > 500) logs.shift(); }
 
-for (const m of ['kernel: eth0: link up', 'dockerd: API listen on /var/run/docker.sock', '[cuos-iac] Info: repo is up to date.'])
+for (const m of ['kernel: eth0: link up', 'kernel: eth1: link up', 'dockerd: API listen on /var/run/docker.sock', '[cuos-iac] Info: repo is up to date.'])
   log('info', m);
 
 setInterval(() => {
@@ -102,7 +102,10 @@ const handlers = {
   'cuos:resources': () => ({
     cpu_usage: rnd(5, 60), mem_used_mb: Math.round(rnd(900, 1500)), mem_total_mb: 3800,
     disk_used_mb: 11200, disk_total_mb: 29000,
-    network: [{ ip: '192.168.1.50/24' }], dns_servers: ['192.168.1.1'], ntp_servers: ['pool.ntp.org'],
+    network: [{ interface: 'eth0', ip: '192.168.1.50/24' }, { interface: 'eth1', ip: '10.10.0.5/24' }],
+    dns_servers: ['192.168.1.1', '1.1.1.1'], ntp_servers: ['pool.ntp.org', 'time.cloudflare.com'],
+    ntp_service_active: true, ntp_synchronizede: true,
+    routes: ['default via 192.168.1.1 dev eth0 proto dhcp src 192.168.1.50 metric 100', '10.10.0.0/24 dev eth1 proto kernel scope link src 10.10.0.5', '172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown'],
     default_route_ip: '192.168.1.1', net_tx_mbps: +rnd(0, 2).toFixed(2), net_rx_mbps: +rnd(0, 5).toFixed(2),
   }),
   'docker:version': () => ({ version: '27.3.1', api: '1.47' }),
