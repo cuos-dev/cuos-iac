@@ -220,7 +220,33 @@ include:
 | `fleet_server_url` | — | Where the agent connects. Without it the agent exits. |
 | `fleet_secret` | `changeme` | Shared secret for the connection. **Change it.** |
 | `fleet_tags` | `[]` | Labels this device carries, for grouping. |
-| `fleet_uuid` | generated | Pin the device's identity; otherwise one is generated into `/data/state_fleet_uuid`. |
+| `fleet_uuid` | generated | Pin the device's identity. It wins over a stored one and survives a lost `/data`. Otherwise one is generated into `/data/state_fleet_uuid`; without a persistent `/data` the device then shows up as a new one after every restart, and the agent says so in its log. |
+| `fleet_share` | see below | What this device tells the server. |
+
+`fleet_share` is the owner's privacy setting. Nothing outside of it leaves the device, the choice
+is announced to the server, and the server's UI shows what is not available:
+
+```json
+"fleet_share": {
+  "resources": true,
+  "iac_state": true,
+  "network": "summary",
+  "logs": "off",
+  "remote_update": true
+}
+```
+
+| Key | Values (default first) | |
+|---|---|---|
+| `resources` | `true`, `false` | CPU, RAM, disk, uptime. |
+| `iac_state` | `true`, `false` | State, commit and error of the IaC manager. |
+| `network` | `"summary"`, `"full"`, `"none"` | `summary`: the default route address only. `full`: all interfaces, DNS, NTP and routes. `none`: no addresses. |
+| `logs` | forwarding as configured, `"off"` | Logs are only forwarded for the units named in `fleet_log_units`; `"off"` stops that regardless. |
+| `remote_update` | `true`, `false` | Whether the server may ask the device to check its repository now. The device still applies only what the repository says, with the usual signature and digest checks. The agent logs who asked. |
+
+An invalid value falls back to the safe choice, never to a wider one. Agents older than this
+setting send everything; the server's UI marks them as legacy.
+
 
 The server is configured through environment variables:
 

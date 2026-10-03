@@ -7,6 +7,7 @@ import { WebSocket } from 'ws';
 import net from 'net';
 import { spawn } from 'child_process';
 import { createRequire } from 'module';
+import { resolveShares, filterResources, filterAppState } from './share.js';
 const agentVersion = createRequire(import.meta.url)('./package.json').version;
 
 // ---- Configuration Loading ----
@@ -36,6 +37,7 @@ const heartbeatIntervalSec = systemConfig.heartbeat_interval_sec || 30;
 const hostname = systemConfig.hostname || systemConfig.system_name || systemConfig['iac_repo_subdir'] || 'unknown';
 const metricsIntervalSec = systemConfig.metrics_interval_sec || 60;
 const logUnits = systemConfig.fleet_log_units || [];
+const shares = resolveShares(systemConfig);   // read once like the rest; restart the agent to change it
 
 if (!fleetServerUrl) {
   console.error('No fleet_server_url configured');
@@ -49,16 +51,18 @@ const vlIngestUrl  = `${baseUrl}/api/ingest/logs`;
 
 // ---- UUID persistence ----
 const UUID_FILE = process.env.FLEET_UUID_FILE || '/data/state_fleet_uuid';
-let uuid;
+let uuid = systemConfig.fleet_uuid;          // pinned in system.json: survives a lost /data
 try {
-  if (fs.existsSync(UUID_FILE)) uuid = fs.readFileSync(UUID_FILE, 'utf8').trim();
+  if (!uuid && fs.existsSync(UUID_FILE)) uuid = fs.readFileSync(UUID_FILE, 'utf8').trim();
 } catch {}
 if (!uuid) {
-  uuid = systemConfig.fleet_uuid;
-}
-if (!uuid) {
   uuid = crypto.randomUUID();
-  try { fs.writeFileSync(UUID_FILE, uuid); } catch {}
+  try { fs.writeFileSync(UUID_FILE, uuid); }
+  catch (e) {
+    // without a stored id every restart registers as a new device
+    console.error(`WARNING: cannot store the device id in ${UUID_FILE} (${e.message}). ` +
+      'This device will show up as a new one after every restart. Set "fleet_uuid" in system.json or make /data persistent.');
+  }
 }
 
 // ---- iacApi (Unix socket) ----
@@ -99,7 +103,8 @@ function connect() {
       tags,
       repo_url: repoUrl,
       repo_branch: repoBranch,
-      protocol_version: 1
+      protocol_version: 2,
+      shares
     }));
     startHeartbeat();
   });
@@ -141,8 +146,12 @@ function scheduleReconnect() {
 }
 
 async function handleUpdateTrigger(msg) {
-  console.log('Received update trigger');
+  console.log(JSON.stringify({ msg: 'update trigger', requested_by: msg.requested_by || null, allowed: shares.remote_update }));
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!shares.remote_update) {
+    ws.send(JSON.stringify({ type: 'update_denied', uuid, reason: 'remote update is not permitted on this device' }));
+    return;
+  }
   ws.send(JSON.stringify({ type: 'update_status', uuid, phase: 'start' }));
   let success = false;
   let error;
@@ -192,7 +201,7 @@ async function collectAndSendMetrics() {
       partition: stateData.partition,
       update_state: stateData.update_state
     },
-    resources: {
+    resources: filterResources({
       cpu_usage: resourcesData.cpu_usage,
       cpu_cores: resourcesData.cpu_cores,
       ram_percent: resourcesData.ram_percent,
@@ -210,8 +219,8 @@ async function collectAndSendMetrics() {
       ntp_service_active: resourcesData.ntp_service_active,
       ntp_synchronizede: resourcesData.ntp_synchronizede,
       routes: resourcesData.routes
-    },
-    app_state: appStateData
+    }, shares),
+    app_state: filterAppState(appStateData, shares)
   };
   try {
     ws.send(JSON.stringify(payload));
@@ -219,7 +228,7 @@ async function collectAndSendMetrics() {
     console.error('Failed to send metrics', e.message);
   }
   // 4.1 push metrics
-  pushMetricsToVM(vmIngestUrl, resourcesData);
+  if (shares.resources) pushMetricsToVM(vmIngestUrl, resourcesData);
 }
 
 // 4.1 VictoriaMetrics push (Prometheus text format)
@@ -293,5 +302,5 @@ function startLogForwarding(logsUrl, units) {
 }
 
 connect();
-if (logUnits.length) startLogForwarding(vlIngestUrl, logUnits);
+if (shares.logs) startLogForwarding(vlIngestUrl, logUnits);
 
