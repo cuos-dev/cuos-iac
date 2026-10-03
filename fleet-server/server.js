@@ -61,18 +61,20 @@ db.exec(`
 `);
 // ponytail: migrate existing DBs; ignore error if column already exists
 try { db.exec(`ALTER TABLE devices ADD COLUMN agent_version TEXT`); } catch {}
+try { db.exec(`ALTER TABLE devices ADD COLUMN shares TEXT`); } catch {}
 
 const stmts = {
   upsertDevice: db.prepare(`
-    INSERT INTO devices (id, hostname, cuos_version, agent_version, tags, repo_url, repo_branch, protocol_version, status, connected_at, last_seen, last_update, metrics)
-    VALUES (@id, @hostname, @cuosVersion, @agentVersion, @tags, @repoUrl, @repoBranch, @protocolVersion, @status, @connectedAt, @lastSeen, @lastUpdate, @metrics)
+    INSERT INTO devices (id, hostname, cuos_version, agent_version, tags, repo_url, repo_branch, protocol_version, status, connected_at, last_seen, last_update, metrics, shares)
+    VALUES (@id, @hostname, @cuosVersion, @agentVersion, @tags, @repoUrl, @repoBranch, @protocolVersion, @status, @connectedAt, @lastSeen, @lastUpdate, @metrics, @shares)
     ON CONFLICT(id) DO UPDATE SET
       hostname=excluded.hostname, cuos_version=excluded.cuos_version, agent_version=excluded.agent_version, tags=excluded.tags,
       repo_url=excluded.repo_url, repo_branch=excluded.repo_branch,
       protocol_version=excluded.protocol_version, status=excluded.status,
       connected_at=excluded.connected_at, last_seen=excluded.last_seen,
       last_update=COALESCE(excluded.last_update, devices.last_update),
-      metrics=COALESCE(excluded.metrics, devices.metrics)
+      metrics=COALESCE(excluded.metrics, devices.metrics),
+      shares=excluded.shares
   `),
   updateStatus: db.prepare(`UPDATE devices SET status=@status, last_update=COALESCE(@lastUpdate, last_update), last_seen=@lastSeen WHERE id=@id`),
   updateSeen:   db.prepare(`UPDATE devices SET last_seen=@lastSeen WHERE id=@id`),
@@ -95,7 +97,7 @@ if (fs.existsSync(CLIENTS_FILE)) {
           tags: JSON.stringify(c.tags || []), repoUrl: c.repo_url || null, repoBranch: c.repo_branch || null,
           protocolVersion: c.protocol_version || 1, status: 'offline',
           connectedAt: c.connected_at || null, lastSeen: c.last_seen || null,
-          lastUpdate: c.last_update || null, metrics: c.metrics ? JSON.stringify(c.metrics) : null,
+          lastUpdate: c.last_update || null, metrics: c.metrics ? JSON.stringify(c.metrics) : null, shares: null,
         });
       }
     })();
@@ -106,10 +108,33 @@ if (fs.existsSync(CLIENTS_FILE)) {
   }
 }
 
+// What a device says it shares (protocol 2). null = protocol 1 agent, which sends everything.
+// The agent is the real boundary; the server scrubs once more so stored data can never go beyond
+// the announced manifest. Field lists mirror fleet-agent/share.js.
+const NETWORK_LEVELS = ['none', 'summary', 'full'];
+function sanitizeShares(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    resources: raw.resources !== false,
+    iac_state: raw.iac_state !== false,
+    network: NETWORK_LEVELS.includes(raw.network) ? raw.network : 'summary',
+    logs: raw.logs === true,
+    remote_update: raw.remote_update !== false,
+  };
+}
+const NET_SUMMARY = ['default_route_ip'];
+const NET_FULL = [...NET_SUMMARY, 'network', 'dns_servers', 'ntp_servers', 'ntp_service_active', 'ntp_synchronizede', 'routes'];
+const LOAD_FIELDS = ['cpu_usage', 'cpu_cores', 'ram_percent', 'mem_used_mb', 'mem_total_mb', 'disk_percent', 'disk_used_mb', 'disk_total_mb', 'uptime_seconds', 'virt_type'];
+function scrubResources(resources, shares) {
+  if (!shares || !resources || typeof resources !== 'object') return resources;
+  const keep = new Set([...(shares.resources ? LOAD_FIELDS : []), ...(shares.network === 'full' ? NET_FULL : shares.network === 'summary' ? NET_SUMMARY : [])]);
+  return Object.fromEntries(Object.entries(resources).filter(([k]) => keep.has(k)));
+}
+
 // Load all devices into memory; mark all offline until they reconnect
 db.prepare(`UPDATE devices SET status='offline'`).run();
 function rowToDevice(row) {
-  return { ...row, tags: JSON.parse(row.tags || '[]'), metrics: row.metrics ? JSON.parse(row.metrics) : null };
+  return { ...row, tags: JSON.parse(row.tags || '[]'), metrics: row.metrics ? JSON.parse(row.metrics) : null, shares: row.shares ? JSON.parse(row.shares) : null };
 }
 const clients = {};
 for (const row of stmts.allDevices.all()) clients[row.id] = rowToDevice(row);
@@ -328,13 +353,14 @@ app.get('/api/logs/:id/stream', requireAdmin, (req, res) => {
 app.post('/api/bulk-update', requireAdmin, (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids must be array' });
-  const triggered = [], offline = [];
+  const triggered = [], offline = [], denied = [];
   for (const id of ids) {
     const ws = wsConnections.get(id);
-    if (ws) { ws.send(JSON.stringify({ type: 'update_trigger', reason: 'manual' })); triggered.push(id); }
+    if (clients[id]?.shares?.remote_update === false) denied.push(id);
+    else if (ws) { ws.send(JSON.stringify({ type: 'update_trigger', reason: 'manual', requested_by: req.user.name })); triggered.push(id); }
     else offline.push(id);
   }
-  res.json({ triggered, offline });
+  res.json({ triggered, offline, denied });
 });
 
 // Trigger update
@@ -343,8 +369,9 @@ app.post('/api/clients/:id/update', requireAdmin, (req, res) => {
   const c = clients[id];
   if (!c) return res.status(404).json({ error: 'not_found' });
   const ws = wsConnections.get(id);
+  if (c.shares?.remote_update === false) return res.status(409).json({ error: 'update_not_permitted' });
   if (!ws) return res.status(409).json({ error: 'client_offline' });
-  ws.send(JSON.stringify({ type: 'update_trigger', reason: 'manual' }));
+  ws.send(JSON.stringify({ type: 'update_trigger', reason: 'manual', requested_by: req.user.name }));
   res.json({ status: 'triggered' });
 });
 
@@ -406,20 +433,24 @@ wss.on('connection', (ws) => {
         repo_branch,
         protocol_version = 1
       } = msg;
+      const shares = protocol_version >= 2 ? sanitizeShares(msg.shares) : null;
       if (!uuid || typeof uuid !== 'string') return;
       if (!/^[A-Za-z0-9._-]{1,64}$/.test(uuid)) { ws.close(1008, 'invalid uuid'); return; }
       const now = new Date().toISOString();
       clients[uuid] = {
-        id: uuid, hostname, cuos_version, agent_version, tags, repo_url, repo_branch, protocol_version,
+        id: uuid, hostname, cuos_version, agent_version, tags, repo_url, repo_branch, protocol_version, shares,
         last_update: clients[uuid]?.last_update || null,
         connected_at: now, last_seen: now, status: 'online',
-        metrics: clients[uuid]?.metrics || null,
+        // a device that now shares less must not keep showing what it shared before
+        metrics: clients[uuid]?.metrics
+          ? { ...clients[uuid].metrics, resources: scrubResources(clients[uuid].metrics.resources, shares), app_state: shares && !shares.iac_state ? {} : clients[uuid].metrics.app_state }
+          : null,
       };
       stmts.upsertDevice.run({
         id: uuid, hostname, cuosVersion: cuos_version, agentVersion: agent_version || null,
         tags: JSON.stringify(tags), repoUrl: repo_url, repoBranch: repo_branch,
         protocolVersion: protocol_version, status: 'online',
-        connectedAt: now, lastSeen: now, lastUpdate: null, metrics: null,
+        connectedAt: now, lastSeen: now, lastUpdate: null, metrics: null, shares: shares ? JSON.stringify(shares) : null,
       });
       wsConnections.set(uuid, ws);
       ws.send(JSON.stringify({ type: 'server_welcome', server_time: now }));
@@ -445,11 +476,19 @@ wss.on('connection', (ws) => {
         if (phase === 'finished') fireWebhook(success ? 'update_success' : 'update_failed', clients[uuid]);
         broadcastState();
       }
+    } else if (msg.type === 'update_denied') {
+      const { uuid, reason } = msg;
+      if (uuid && clients[uuid]) {
+        const now = new Date().toISOString();
+        stmts.insertEvent.run({ deviceId: uuid, ts: now, phase: 'denied', success: 0, error: String(reason || 'not permitted').slice(0, 200) });
+        broadcastState();
+      }
     } else if (msg.type === 'metrics') {
       const { uuid, state, resources, app_state } = msg;
       if (uuid && clients[uuid]) {
         const now = new Date().toISOString();
-        const metricsObj = { state, resources, app_state, collected_at: now };
+        const shares = clients[uuid].shares;
+        const metricsObj = { state, resources: scrubResources(resources, shares), app_state: shares && !shares.iac_state ? {} : app_state, collected_at: now };
         const metricsJson = JSON.stringify(metricsObj);
         clients[uuid].last_seen = now;
         clients[uuid].metrics = metricsObj;

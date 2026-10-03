@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import { isOutdated } from '../lib/version.js';
 import { hasProblem } from '../lib/status.js';
+import { addressesOf } from '../lib/shares.js';
 import { DeviceRow } from './DeviceRow.jsx';
 
 const PAGE_SIZE = 15;
@@ -25,7 +26,7 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, canAct, fi
       const q = search.toLowerCase();
       return (d.hostname || '').toLowerCase().includes(q)
           || (d.id || '').toLowerCase().includes(q)
-          || (d.metrics?.resources?.default_route_ip || '').includes(q);
+          || addressesOf(d).some(ip => ip.includes(q));
     }
     return true;
   });

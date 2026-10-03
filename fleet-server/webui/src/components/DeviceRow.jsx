@@ -3,6 +3,7 @@ import { useAction } from '../hooks/useAction.js';
 import { isOutdated } from '../lib/version.js';
 import { fmt } from '../lib/fmt.js';
 import { iacHealth, hasProblem } from '../lib/status.js';
+import { sharesOf, canRemoteUpdate } from '../lib/shares.js';
 import { DetailPanel } from './DetailPanel.jsx';
 
 const STATUS_BADGE = {
@@ -34,6 +35,8 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta, canAct }) 
   const [open, setOpen]       = useState(false);
   const { run, pending, done, error } = useAction();
   const offline = d.status === 'offline';
+  const sh = sharesOf(d);
+  const permitted = canRemoteUpdate(d);
   const r  = d.metrics?.resources || {};
   const as = d.metrics?.app_state  || {};
 
@@ -47,7 +50,7 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta, canAct }) 
   // "done" only means the trigger was accepted; the update itself is shown by the device status
   const btnIcon  = busy ? 'ti-loader-2 spin' : done ? 'ti-check' : 'ti-refresh';
   const btnLabel = busy ? 'Updating…' : done ? 'Triggered' : error ? 'Error' : 'Update';
-  const btnCls   = `tbl-btn ${done ? 'done' : error ? 'error' : 'primary'} ${(offline || busy) ? 'disabled' : ''}`;
+  const btnCls   = `tbl-btn ${done ? 'done' : error ? 'error' : 'primary'} ${(offline || busy || !permitted) ? 'disabled' : ''}`;
 
   return (
     <>
@@ -72,24 +75,28 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta, canAct }) 
             ? <span class={`version-chip ${isOutdated(d.agent_version, latestAgent) ? 'outdated' : ''}`}>{d.agent_version}</span>
             : <span class="muted">—</span>}
         </td>
-        <td class="col-ip"><span class="mono">{r.default_route_ip || '—'}</span></td>
+        <td class="col-ip">{r.default_route_ip
+          ? <span class="mono">{r.default_route_ip}</span>
+          : sh.network === 'none' ? <span class="muted not-shared" title="The device owner does not share addresses"><i class="ti ti-lock" /> not shared</span> : <span class="muted">—</span>}</td>
         <td class="col-iac">
           {as.iac_state
             ? <span class={`badge ${iacCls}`} title={as.iac_error || as.iac_state}>{as.iac_state}</span>
-            : <span class="muted">—</span>}
+            : sh.iac_state === false ? <span class="muted not-shared" title="The device owner does not share the IaC state"><i class="ti ti-lock" /> not shared</span> : <span class="muted">—</span>}
         </td>
         <td class="col-cpu">
           <div class="mini-bars">
+            {sh.resources === false ? <span class="muted not-shared" title="The device owner does not share load data"><i class="ti ti-lock" /> not shared</span> : <>
             <MiniBar val={r.cpu_usage}    label="CPU" />
             <MiniBar val={r.ram_percent}  label="RAM" />
             <MiniBar val={r.disk_percent} label="Disk" />
+            </>}
           </div>
         </td>
         <td class="col-uptime"><span class="muted">{fmt.uptime(r.uptime_seconds)}</span></td>
         <td><span class={`last-seen ${fmt.lastSeenClass(d.last_seen)}`}>{fmt.relative(d.last_seen)}</span></td>
         <td onClick={e => e.stopPropagation()}>
           <div class="action-cell">
-            {canAct && <button class={btnCls} onClick={() => run(`/api/clients/${d.id}/update`)} disabled={offline || busy} title={error || undefined}>
+            {canAct && <button class={btnCls} onClick={() => run(`/api/clients/${d.id}/update`)} disabled={offline || busy || !permitted} title={!permitted ? 'This device does not allow remote updates' : error || undefined}>
               <i class={`ti ${btnIcon}`} /> {btnLabel}
             </button>}
             <button class="tbl-btn" onClick={() => setOpen(x => !x)}>

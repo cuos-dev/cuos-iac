@@ -4,7 +4,7 @@
   border-top: none !important;
 }
 .detail-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 24px; margin-bottom: 20px;
 }
 .detail-grid section h4 {
@@ -41,3 +41,12 @@
 .chart-wrap { display: flex; flex-direction: column; gap: 4px; flex: 1 1 260px; min-width: 0; }
 .chart-box { width: 100%; min-width: 0; }
 .chart-label { font-size: 11px; color: var(--text-muted); }
+
+.share-list { list-style: none; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+.share-on  i { color: var(--green-600); }
+.share-off   { color: var(--text-muted); }
+.share-off i { color: var(--text-muted); }
+.not-shared { font-size: 11px; white-space: nowrap; }
+.routes { margin-top: 8px; font-size: 12px; }
+.routes summary { cursor: pointer; color: var(--text-secondary); font-weight: 500; }
+.routes ul { margin: 6px 0 0; padding: 0; list-style: none; font-family: var(--font-mono); font-size: 11px; line-height: 1.7; color: var(--text-secondary); word-break: break-word; }

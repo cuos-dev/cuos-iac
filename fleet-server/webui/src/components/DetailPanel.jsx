@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { fmt } from '../lib/fmt.js';
 import { MetricsPanel } from './MetricsPanel.jsx';
 import { LogStream } from './LogStream.jsx';
+import { sharesOf, sharesLogs } from '../lib/shares.js';
 
 export function DetailPanel({ device: d, meta }) {
   const [events, setEvents] = useState(null);
@@ -13,6 +14,8 @@ export function DetailPanel({ device: d, meta }) {
 
   const r = d.metrics?.resources || {};
   const s = d.metrics?.state     || {};
+  const sh = sharesOf(d);
+  const ifaces = Array.isArray(r.network) ? r.network : [];
 
   return (
     <tr>
@@ -46,6 +49,39 @@ export function DetailPanel({ device: d, meta }) {
           </section>
 
           <section>
+            <h4>Network</h4>
+            {sh.network === 'none'
+              ? <span class="muted"><i class="ti ti-lock" /> Not shared by this device.</span>
+              : <>
+                  <dl>
+                    {ifaces.map((n, i) => <><dt>{n.interface || `if ${i + 1}`}</dt><dd class="mono-sm">{n.ip}</dd></>)}
+                    <dt>Gateway</dt><dd class="mono-sm">{r.default_route_ip || '—'}</dd>
+                    {sh.network === 'full' && <><dt>DNS</dt><dd class="mono-sm">{(r.dns_servers || []).join(', ') || '—'}</dd>
+                    <dt>NTP</dt><dd class="mono-sm">{(r.ntp_servers || []).join(', ') || '—'}{r.ntp_service_active !== undefined && (r.ntp_synchronizede ?? r.ntp_synchronized) ? ' (synced)' : ''}</dd></>}
+                  </dl>
+                  {(r.routes || []).length > 0 && (
+                    <details class="routes"><summary>Routes ({r.routes.length})</summary>
+                      <ul>{r.routes.map((x, i) => <li key={i}>{x}</li>)}</ul>
+                    </details>
+                  )}
+                  {sh.network === 'summary' && <div class="muted" style="font-size:11px;margin-top:4px">The device shares only its default route address.</div>}
+                </>}
+          </section>
+
+          <section>
+            <h4>Sharing</h4>
+            {sh.legacy
+              ? <span class="muted">Legacy agent (protocol 1): sends everything, the owner cannot limit it. Update the agent to get privacy settings.</span>
+              : <ul class="share-list">
+                  <ShareRow label="Load (CPU, RAM, disk)" on={sh.resources} />
+                  <ShareRow label="IaC state" on={sh.iac_state} />
+                  <ShareRow label="Addresses" on={sh.network !== 'none'} note={sh.network} />
+                  <ShareRow label="Logs" on={sh.logs} />
+                  <ShareRow label="Remote update" on={sh.remote_update} note={sh.remote_update ? 'allowed' : 'not allowed'} />
+                </ul>}
+          </section>
+
+          <section>
             <h4>Recent updates</h4>
             {events === null
               ? <span class="muted">Loading…</span>
@@ -65,9 +101,18 @@ export function DetailPanel({ device: d, meta }) {
           </section>
         </div>
 
-        {meta?.hasVm && <MetricsPanel deviceId={d.id} />}
-        {meta?.hasVl && <LogStream device={d} />}
+        {meta?.hasVm && sh.resources !== false && <MetricsPanel deviceId={d.id} />}
+        {meta?.hasVl && sharesLogs(d) && <LogStream device={d} />}
       </td>
     </tr>
+  );
+}
+
+function ShareRow({ label, on, note }) {
+  return (
+    <li class={on ? 'share-on' : 'share-off'}>
+      <i class={`ti ${on ? 'ti-check' : 'ti-lock'}`} /> <span>{label}</span>
+      {note && <span class="muted"> · {note}</span>}
+    </li>
   );
 }
