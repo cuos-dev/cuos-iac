@@ -197,7 +197,10 @@ which describes the whole system.
 
 `webui/` — a web interface on port 8030: when the next pull is due, a button to
 trigger one now, `docker ps` as a table, CPU/RAM/disk/uptime, the system log, and
-the CuOS actions (shutdown, reboot, rollback, factory reset).
+the CuOS actions (shutdown, reboot, rollback, factory reset). With the fleet agent installed it also
+shows a Fleet card: the server, whether the device is connected, enrolled or waiting for approval, and
+exactly what it shares (load, IaC state, addresses, logs, remote updates). The agent publishes that
+through the IaC container's `fleet:status` / `fleet:status:set`; without an agent the card is not shown.
 
 ```yml
 include:

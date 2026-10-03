@@ -249,6 +249,19 @@ elif [[ "${COMMAND}" = "compose:file" ]]; then
   fi
   jq -Rs '{content: .}' "$compose_file"
 
+## fleet:status         - What the fleet agent last reported about itself, as JSON ({} if it never did)
+elif [[ "${COMMAND}" = "fleet:status" ]]; then
+  if [[ -s /volume/fleet.json ]]; then cat /volume/fleet.json; else echo '{}'; fi
+
+## fleet:status:set     - Fleet agent: publish its status (a JSON object in .status; kept small)
+elif [[ "${COMMAND}" = "fleet:status:set" ]]; then
+  status="$(jq -c 'if (.status | type) == "object" then .status else empty end' <<< "${INPUT}" 2>/dev/null)"
+  if [[ -z "${status}" || ${#status} -gt 4096 ]]; then
+    echo '{"error":"invalid status"}'
+    exit 1
+  fi
+  tmp="$(mktemp /volume/fleet.XXXXXX)" && printf '%s\n' "${status}" > "${tmp}" && mv "${tmp}" /volume/fleet.json && echo '{"result":"ok"}'
+
 ## dry-run             - Preview system.json changes without applying them
 elif [[ "${COMMAND}" = "dry-run" ]]; then
   if [[ ! -d "${REPO_DIR}/.git" ]]; then

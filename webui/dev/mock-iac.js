@@ -34,6 +34,15 @@ let containers = [
   { Names: 'iac-grafana-1',  Image: 'registry.example.com/grafana/grafana:11', Status: 'Exited (1) 2 minutes ago', RunningFor: '3 hours ago', Size: '1.2MB (virtual 486MB)', Ports: '', Networks: 'iac_default', CreatedAt: '2026-10-03 07:12:04 +0200 CEST' },
 ];
 
+// fleet agent status as iac/api/trigger keeps it (fleet:status / fleet:status:set); starts with a demo so the
+// card is visible without an agent. A real agent (or any caller) replaces it with fleet:status:set.
+let fleet = {
+  server: 'fleet.example.com', state: 'connected', since: iso(new Date(Date.now() - 5400e3)), error: null,
+  device_id: '5f0c2a9e-3b71-4d6a-9a1e-0c8b7d2e4f10', enrollment: 'enrolled', agent_version: '0.5.2', last_remote_update: null, demo: true,
+  shares: { resources: true, iac_state: true, network: 'summary', logs: ['iac'], remote_update: true },
+};
+const fleetFresh = () => ({ ...fleet, updated: fleet.demo === false ? fleet.updated : iso() });   // the demo keeps looking alive
+
 let progress = [];       // list of {step,status,ts}, same shape as iac/entrypoint.sh emit_progress
 const logs = [];         // {date,level,message}; iac lines carry the "[cuos-iac] " prefix like the real log
 
@@ -109,6 +118,11 @@ const handlers = {
     default_route_ip: '192.168.1.1', net_tx_mbps: +rnd(0, 2).toFixed(2), net_rx_mbps: +rnd(0, 5).toFixed(2),
   }),
   'docker:version': () => ({ version: '27.3.1', api: '1.47' }),
+  'fleet:status': () => (fleet ? fleetFresh() : {}),
+  'fleet:status:set': p => {
+    if (!p.status || typeof p.status !== 'object' || JSON.stringify(p.status).length > 4096) return { error: 'invalid status' };
+    fleet = { ...p.status, demo: false }; return { result: 'ok' };
+  },
   'docker:logs': p => guard(p, c => ({ lines: [...Array(20)].map((_, i) => `${iso()} ${c.Names} log line ${i + 1}`) })),
   'docker:restart': p => guard(p, c => { c.Status = 'Up Less than a second'; return { result: 'ok' }; }),
   'docker:stop':    p => guard(p, c => { c.Status = 'Exited (0) Less than a second ago'; return { result: 'ok' }; }),

@@ -126,9 +126,11 @@ function broadcast(msg) {
 
 async function pollState() {
   try {
-    const [cuosState, resources, ps, appState, progress] = await Promise.all([
-      iacApi('cuos:state'), iacApi('cuos:resources'), iacApi('ps'), iacApi('state'), iacApi('progress'),
+    const [cuosState, resources, ps, appState, progress, fleetRaw] = await Promise.all([
+      iacApi('cuos:state'), iacApi('cuos:resources'), iacApi('ps'), iacApi('state'), iacApi('progress'), iacApi('fleet:status'),
     ]);
+    // what the fleet agent reports about itself; an IaC container without the command answers with text, no agent with {}
+    const fleet = fleetRaw && typeof fleetRaw === 'object' && Object.keys(fleetRaw).length ? fleetRaw : null;
     if (resources && typeof resources === 'object') {
       resources.ram_percent  = Math.round((resources.mem_used_mb  / resources.mem_total_mb)  * 100);
       resources.disk_percent = Math.round((resources.disk_used_mb / resources.disk_total_mb) * 100);
@@ -138,7 +140,7 @@ async function pollState() {
       appState.iac_started = appState.last_iac_start ?? null;
       appState.commit      = appState.iac_commit ?? null;
     }
-    const msg = { type: 'state', cuosState, resources, ps, appState, progress, system: getSystem() };
+    const msg = { type: 'state', cuosState, resources, ps, appState, progress, fleet, system: getSystem() };
     const str = JSON.stringify(msg);
     if (str === lastStateSerialized) return;
     lastStateSerialized = str;
