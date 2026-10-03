@@ -12,3 +12,6 @@ export function iacHealth(state) {
 export function hasProblem(d) {
   return d.status === 'error' || iacHealth(d.metrics?.app_state?.iac_state) === 'error';
 }
+
+// a device (new, or a known one that lost its token) waiting for an administrator
+export const hasRequest = d => !!d.enrollment?.request;

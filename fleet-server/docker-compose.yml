@@ -14,6 +14,7 @@ services:
       - "${FLEET_PORT:-8085}:8085"
     environment:
       FLEET_SECRET:     ${FLEET_SECRET:-dev-fleet-secret}
+      FLEET_ENROLLMENT: ${FLEET_ENROLLMENT:-auto}
       FLEET_ADMIN_USER: ${FLEET_ADMIN_USER:-admin}
       FLEET_ADMIN_PASS: ${FLEET_ADMIN_PASS:-admin}
       FLEET_VM_URL:     http://victoriametrics:8428

@@ -218,7 +218,7 @@ include:
 | Key | Default | Meaning |
 |---|---|---|
 | `fleet_server_url` | — | Where the agent connects. Without it the agent exits. |
-| `fleet_secret` | `changeme` | Shared secret for the connection. **Change it.** |
+| `fleet_secret` | `changeme` | The bootstrap secret, used to enrol a device. After that the device has a token of its own (see below). **Change it.** |
 | `fleet_tags` | `[]` | Labels this device carries, for grouping. |
 | `fleet_uuid` | generated | Pin the device's identity. It wins over a stored one and survives a lost `/data`. Otherwise one is generated into `/data/state_fleet_uuid`; without a persistent `/data` the device then shows up as a new one after every restart, and the agent says so in its log. |
 | `fleet_share` | see below | What this device tells the server. |
@@ -252,7 +252,8 @@ The server is configured through environment variables:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `FLEET_SECRET` | `changeme` | The agents' shared secret. The server warns while it is the default. |
+| `FLEET_SECRET` | `changeme` | The bootstrap secret agents enrol with. The server warns while it is the default. |
+| `FLEET_ENROLLMENT` | `auto` | `auto`: a device that knows the secret and is not yet known is enrolled at once. `approve`: an administrator has to let it in first. |
 | `FLEET_USERS_FILE` | `<data dir>/users.json` | JSON array of `{ "name", "password", "role" }`. `role` is `admin` (may trigger updates) or `viewer` (read only, no device logs); no role means `viewer`. Passwords may be bcrypt hashes (`$2b$…`) or plain text. |
 | `FLEET_ADMIN_USER`, `FLEET_ADMIN_PASS` | `admin` / `admin` | Still work and are an admin. The server warns while the password is the default. |
 | `FLEET_API_KEYS` | — | Comma separated bearer keys for automation, with admin rights. |
@@ -260,10 +261,28 @@ The server is configured through environment variables:
 | `FLEET_TRUST_PROXY` | off | Behind a reverse proxy set `true` (or a hop count), otherwise every client looks like the proxy. |
 | `FLEET_NAME` | — | Shown next to the title, e.g. `production`. |
 
+### Enrolment
+
+`fleet_secret` is only the key to the door. The first time a device connects with it, the server
+issues a token for that device (random, 256 bit, only its hash is kept) and the agent keeps it in
+`/data/state_fleet_token` (mode 600). From then on the agent connects with that token, not with the
+secret, and the connection is bound to the device it belongs to: a device cannot report, or update, on
+behalf of another.
+
+- A device that arrives with the secret and the id of a device that is already enrolled — it lost
+  its `/data`, or someone is trying to take its place — is **never** taken over silently. It waits,
+  connected, until an administrator approves it in the UI; approving gives it a new token and the old
+  one stops working. While it waits the real device keeps working with its own token.
+- An administrator can **rotate** a token (the old one stays valid until the new one has been used once)
+  or **revoke** it; a revoked device has to be approved again.
+- Set the device id (`fleet_uuid`) in the device's `system.json`: it then survives a lost `/data`, and
+  the re-enrolment above is recognised as that device.
+- The token travels in the `Authorization` header and once when it is handed out. Run the server behind
+  TLS and point `fleet_server_url` at it with `https://`.
+
 The roles are enforced by the server. After 10 wrong passwords from one address,
 logins from it are refused for five minutes. The UI is served only to signed-in
-users. Agents send the secret as a bearer header; the older form with the secret
-in the URL (`/ws/<secret>`) is still accepted, but ends up in proxy logs.
+users. Agents authenticate with a bearer header; there is no secret in any URL.
 
 ## Optional: Dev-Container
 

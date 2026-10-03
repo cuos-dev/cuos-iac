@@ -20,23 +20,26 @@ function spec(i) {
     agent_version: i % 9 === 4 ? '0.4.0' : '0.5.2',
     tags: i % 3 === 0 ? ['prod', 'edge'] : i % 3 === 1 ? ['prod'] : ['test'],
     // behaviour: normal | offline | failing (iac_state error) | flaky (updates fail)
-    mode: i % 7 === 5 ? 'offline' : i % 8 === 3 ? 'failing' : i % 5 === 4 ? 'flaky' : 'normal',
+    mode: i % 7 === 5 ? 'offline' : i % 8 === 3 ? 'failing' : i % 5 === 4 ? 'flaky' : (i === 11 || i === 16) ? 'amnesia' : 'normal',
     base: { cpu: rand(8, 70), ram: rand(30, 90), disk: rand(20, 92) },
     ip: `192.168.${10 + (i % 4)}.${20 + n}`,
-    // privacy profile, as the owner would write it in system.json. 'legacy' = protocol 1 agent that sends everything
-    legacy: i === 0,
+    // privacy profile, as the owner would write it in system.json
     share: { 4: { network: 'full' }, 1: { network: 'full' }, 2: { remote_update: false }, 6: { resources: false },
              7: { network: 'none' }, 8: { iac_state: false }, 10: { remote_update: false, network: 'full' } }[i],
     logs: i % 3 === 0 ? ['cuos-iac.service'] : [],
   };
 }
 
+const tokens = new Map();   // device id -> token, stands in for /data/state_fleet_token
+
 function run(a) {
   const shares = resolveShares({ fleet_share: a.share, fleet_log_units: a.logs });
-  const ws = new WebSocket(`${URL_}/ws/${SECRET}`);
+  const headers = { Authorization: `Bearer ${tokens.get(a.uuid) || SECRET}` };
+  const ws = new WebSocket(`${URL_}/ws`, { headers });
   let iac = a.mode === 'failing' ? 'docker compose failed' : 'running';
   let timers = [];
   const send = o => ws.readyState === 1 && ws.send(JSON.stringify(o));
+  const retry = () => { timers.forEach(clearInterval); if (a.mode !== 'offline' || !a.seen) setTimeout(() => run(a), 3000); };
 
   const full = (cpu, ram, disk) => ({ cpu_usage: cpu, cpu_cores: 4, ram_percent: Math.round(ram), mem_used_mb: Math.round(ram * 38), mem_total_mb: 3800,
     disk_percent: Math.round(disk), disk_used_mb: Math.round(disk * 290), disk_total_mb: 29000,
@@ -50,33 +53,40 @@ function run(a) {
     const cpu = jitter(a.base.cpu, 8), ram = jitter(a.base.ram, 2), disk = a.base.disk;
     send({ type: 'metrics', uuid: a.uuid,
       state: { version: a.cuos_version },
-      resources: a.legacy ? full(cpu, ram, disk) : filterResources(full(cpu, ram, disk), shares),
-      app_state: filterAppState({ iac_state: iac, iac_commit: 'a1b2c3d4e5f6', last_iac_start: new Date().toISOString(), ...(iac.includes('failed') ? { iac_error: 'docker compose up failed' } : {}) }, a.legacy ? { iac_state: true } : shares) });
+      resources: filterResources(full(cpu, ram, disk), shares),
+      app_state: filterAppState({ iac_state: iac, iac_commit: 'a1b2c3d4e5f6', last_iac_start: new Date().toISOString(), ...(iac.includes('failed') ? { iac_error: 'docker compose up failed' } : {}) }, shares) });
   };
 
+  ws.on('unexpected-response', (req, res) => { console.log(`[fake-agents] ${a.hostname}: refused (${res.headers['x-fleet-reason'] || res.statusCode})`); res.resume(); req.destroy(); retry(); });
   ws.on('open', () => {
     send({ type: 'client_hello', uuid: a.uuid, hostname: a.hostname, cuos_version: a.cuos_version, agent_version: a.agent_version,
-      tags: a.tags, repo_url: 'https://git.example.com/acme/home-iac.git', repo_branch: 'main',
-      ...(a.legacy ? { protocol_version: 1 } : { protocol_version: 2, shares }) });
-    metrics();
-    if (a.mode === 'offline') { setTimeout(() => ws.close(), 1500); return; }     // known to the server, never comes back
-    timers = [setInterval(() => send({ type: 'heartbeat', uuid: a.uuid }), 10000), setInterval(metrics, 5000)];
+      tags: a.tags, repo_url: 'https://git.example.com/acme/home-iac.git', repo_branch: 'main', protocol_version: 2, shares });
   });
 
   ws.on('message', raw => {
     const m = JSON.parse(raw);
-    if (m.type !== 'update_trigger') return;
-    if (!a.legacy && !shares.remote_update) return send({ type: 'update_denied', uuid: a.uuid, reason: 'remote update is not permitted on this device' });
-    iac = 'updating'; send({ type: 'update_status', uuid: a.uuid, phase: 'start' }); metrics();
-    setTimeout(() => {
-      const ok = a.mode !== 'flaky' && a.mode !== 'failing';
-      iac = ok ? 'running' : 'docker compose failed';
-      send({ type: 'update_status', uuid: a.uuid, phase: 'finished', success: ok, error: ok ? undefined : 'docker compose up failed' });
+    if (m.type === 'enrolled' || m.type === 'token_rotate') tokens.set(a.uuid, m.token);
+    else if (m.type === 'server_welcome') {
+      a.seen = true;
       metrics();
-    }, 4000 + Math.random() * 3000);
+      if (a.mode === 'offline') { setTimeout(() => ws.close(), 1500); return; }     // known to the server, never comes back
+      timers = [setInterval(() => send({ type: 'heartbeat', uuid: a.uuid }), 10000), setInterval(metrics, 5000)];
+      // lost /data: forget the token and come back with the bootstrap secret only -> has to be approved
+      if (a.mode === 'amnesia' && !a.forgot) setTimeout(() => { a.forgot = true; tokens.delete(a.uuid); ws.close(); }, 12000);
+    }
+    else if (m.type === 'update_trigger') {
+      if (!shares.remote_update) return send({ type: 'update_denied', uuid: a.uuid, reason: 'remote update is not permitted on this device' });
+      iac = 'updating'; send({ type: 'update_status', uuid: a.uuid, phase: 'start' }); metrics();
+      setTimeout(() => {
+        const ok = a.mode !== 'flaky' && a.mode !== 'failing';
+        iac = ok ? 'running' : 'docker compose failed';
+        send({ type: 'update_status', uuid: a.uuid, phase: 'finished', success: ok, error: ok ? undefined : 'docker compose up failed' });
+        metrics();
+      }, 4000 + Math.random() * 3000);
+    }
   });
 
-  ws.on('close', () => { timers.forEach(clearInterval); if (a.mode !== 'offline') setTimeout(() => run(a), 3000); });
+  ws.on('close', retry);
   ws.on('error', () => {});
 }
 

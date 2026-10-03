@@ -2,11 +2,13 @@ import { useState } from 'preact/hooks';
 import { useAction } from '../hooks/useAction.js';
 import { isOutdated } from '../lib/version.js';
 import { fmt } from '../lib/fmt.js';
-import { iacHealth, hasProblem } from '../lib/status.js';
+import { iacHealth, hasProblem, hasRequest } from '../lib/status.js';
 import { sharesOf, canRemoteUpdate } from '../lib/shares.js';
 import { DetailPanel } from './DetailPanel.jsx';
+import { ApproveReject } from './EnrollmentActions.jsx';
 
 const STATUS_BADGE = {
+  pending:  { cls: 'badge-amber', icon: 'ti-user-question', label: 'pending approval' },
   online:   { cls: 'badge-teal',  icon: 'ti-circle-filled', label: 'online' },
   offline:  { cls: 'badge-gray',  icon: 'ti-circle',        label: 'offline' },
   updating: { cls: 'badge-amber', icon: 'ti-refresh spin',  label: 'updating' },
@@ -40,7 +42,9 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta, canAct }) 
   const r  = d.metrics?.resources || {};
   const as = d.metrics?.app_state  || {};
 
-  const sb     = STATUS_BADGE[d.status] || { cls: 'badge-gray', icon: 'ti-circle', label: d.status || '—' };
+  const waiting = hasRequest(d);
+  const isNew   = d.enrollment?.state === 'pending';
+  const sb     = STATUS_BADGE[isNew ? 'pending' : d.status] || { cls: 'badge-gray', icon: 'ti-circle', label: d.status || '—' };
   const iacCls = IAC_BADGE[iacHealth(as.iac_state)] || 'badge-gray';
   const dotCls = hasProblem(d) ? 'dot-error'
     : d.status === 'updating' ? 'dot-warn'
@@ -59,7 +63,7 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta, canAct }) 
           <div class="device-cell">
             <div class={`device-dot ${dotCls}`} />
             <div>
-              <div class="device-name">{d.hostname || '—'}</div>
+              <div class="device-name">{d.hostname || '—'}{waiting && !isNew && <span class="badge badge-amber req-chip" title="A device with this id asked to be enrolled again"><i class="ti ti-user-question" /> re-enrollment</span>}</div>
               <div class="device-id" title={d.id}>{d.id}</div>
             </div>
           </div>
@@ -95,17 +99,17 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta, canAct }) 
         <td class="col-uptime"><span class="muted">{fmt.uptime(r.uptime_seconds)}</span></td>
         <td><span class={`last-seen ${fmt.lastSeenClass(d.last_seen)}`}>{fmt.relative(d.last_seen)}</span></td>
         <td onClick={e => e.stopPropagation()}>
-          <div class="action-cell">
+          {canAct && waiting ? <ApproveReject device={d} /> : <div class="action-cell">
             {canAct && <button class={btnCls} onClick={() => run(`/api/clients/${d.id}/update`)} disabled={offline || busy || !permitted} title={!permitted ? 'This device does not allow remote updates' : error || undefined}>
               <i class={`ti ${btnIcon}`} /> {btnLabel}
             </button>}
             <button class="tbl-btn" onClick={() => setOpen(x => !x)}>
               <i class={`ti ${open ? 'ti-chevron-up' : 'ti-info-circle'}`} />
             </button>
-          </div>
+          </div>}
         </td>
       </tr>
-      {open && <DetailPanel device={d} meta={meta} />}
+      {open && <DetailPanel device={d} meta={meta} canAct={canAct} />}
     </>
   );
 }

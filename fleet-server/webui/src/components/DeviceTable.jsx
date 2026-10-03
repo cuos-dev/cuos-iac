@@ -1,11 +1,11 @@
 import { useState } from 'preact/hooks';
 import { isOutdated } from '../lib/version.js';
-import { hasProblem } from '../lib/status.js';
+import { hasProblem, hasRequest } from '../lib/status.js';
 import { addressesOf } from '../lib/shares.js';
 import { DeviceRow } from './DeviceRow.jsx';
 
 const PAGE_SIZE = 15;
-const FILTERS   = ['all', 'online', 'offline', 'problems', 'outdated'];
+const FILTERS   = ['all', 'online', 'offline', 'problems', 'pending', 'outdated'];
 // 'name' keeps rows where they are; 'attention' floats problems, then offline, then updating to the top
 const rank = d => hasProblem(d) ? 0 : d.status === 'offline' ? 1 : d.status === 'updating' ? 2 : 3;
 const SORTS = {
@@ -21,6 +21,7 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, canAct, fi
     if (filter === 'online'   && d.status !== 'online') return false;
     if (filter === 'offline'  && d.status !== 'offline') return false;
     if (filter === 'problems' && !hasProblem(d)) return false;
+    if (filter === 'pending'  && !hasRequest(d)) return false;
     if (filter === 'outdated' && !isOutdated(d.cuos_version, latestCuos) && !isOutdated(d.agent_version, latestAgent)) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -32,6 +33,7 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, canAct, fi
   });
 
   filtered.sort(SORTS[sort]);
+  const waiting  = devices.filter(hasRequest).length;
   const pages    = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const p        = Math.min(page, pages - 1);
   const pageRows = filtered.slice(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE);
@@ -43,6 +45,12 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, canAct, fi
 
   return (
     <div class="table-card">
+      {waiting > 0 && filter !== 'pending' && (
+        <div class="pending-banner" role="status">
+          <i class="ti ti-user-question" /> {waiting === 1 ? '1 device is' : `${waiting} devices are`} waiting for approval
+          <button class="tbl-btn" onClick={() => setFilter('pending')}>Show</button>
+        </div>
+      )}
       <div class="table-toolbar">
         <div class="toolbar-title"><i class="ti ti-devices" /> Devices</div>
         <div class="filter-tabs">

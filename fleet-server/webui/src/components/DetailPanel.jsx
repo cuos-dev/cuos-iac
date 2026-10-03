@@ -2,9 +2,11 @@ import { useEffect, useState } from 'preact/hooks';
 import { fmt } from '../lib/fmt.js';
 import { MetricsPanel } from './MetricsPanel.jsx';
 import { LogStream } from './LogStream.jsx';
+import { ApproveReject } from './EnrollmentActions.jsx';
+import { useAction } from '../hooks/useAction.js';
 import { sharesOf, sharesLogs } from '../lib/shares.js';
 
-export function DetailPanel({ device: d, meta }) {
+export function DetailPanel({ device: d, meta, canAct }) {
   const [events, setEvents] = useState(null);
   useEffect(() => {
     fetch(`/api/clients/${d.id}`)
@@ -82,6 +84,11 @@ export function DetailPanel({ device: d, meta }) {
           </section>
 
           <section>
+            <h4>Enrollment</h4>
+            <Enrollment device={d} canAct={canAct} />
+          </section>
+
+          <section>
             <h4>Recent updates</h4>
             {events === null
               ? <span class="muted">Loading…</span>
@@ -114,5 +121,39 @@ function ShareRow({ label, on, note }) {
       <i class={`ti ${on ? 'ti-check' : 'ti-lock'}`} /> <span>{label}</span>
       {note && <span class="muted"> · {note}</span>}
     </li>
+  );
+}
+
+function Enrollment({ device: d, canAct }) {
+  const rotate = useAction(), revoke = useAction();
+  const e = d.enrollment || {};
+  const state = e.state === 'active' ? 'token active' : e.state === 'revoked' ? 'revoked: must be approved again' : e.state === 'pending' ? 'waiting for approval' : 'not enrolled';
+  return (
+    <>
+      <dl>
+        <dt>State</dt>   <dd>{state}</dd>
+        <dt>Token</dt>   <dd>{e.has_token ? `issued ${fmt.date(e.token_created)}` : '—'}</dd>
+      </dl>
+      {e.request && (
+        <div class="enroll-request">
+          <div><i class="ti ti-user-question" /> {e.state === 'pending' ? 'Asks to be enrolled' : 'A device with this id asks to be enrolled again'}</div>
+          <div class="muted" style="font-size:11px">"{e.request.hostname || '?'}" from {String(e.request.addr || '?').replace('::ffff:', '')} · {fmt.date(e.request.since)}{e.request.live ? '' : ' · not connected right now'}</div>
+          {e.state !== 'pending' && d.status === 'online' && <div class="enroll-warn"><i class="ti ti-alert-triangle" /> The real device is online with its token. Approving gives the requester a new token and the old one stops working.</div>}
+          {canAct && <div style="margin-top:6px"><ApproveReject device={d} /></div>}
+        </div>
+      )}
+      {canAct && e.has_token && (
+        <div class="action-cell" style="margin-top:8px">
+          <button class={`tbl-btn ${d.status === 'online' ? '' : 'disabled'}`} disabled={d.status !== 'online' || rotate.pending}
+            title={d.status === 'online' ? 'Hand the device a new token' : 'The device must be online'} onClick={() => rotate.run(`/api/clients/${d.id}/rotate-token`)}>
+            <i class={`ti ${rotate.pending ? 'ti-loader-2 spin' : 'ti-refresh'}`} /> Rotate token
+          </button>
+          <button class="tbl-btn" disabled={revoke.pending} title="Take the token away: the device has to be approved again"
+            onClick={() => confirm(`Revoke the token of ${d.hostname || d.id}? The device will be disconnected and has to be approved again.`) && revoke.run(`/api/clients/${d.id}/revoke`)}>
+            <i class="ti ti-ban" /> Revoke
+          </button>
+        </div>
+      )}
+    </>
   );
 }

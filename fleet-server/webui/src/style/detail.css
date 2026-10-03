@@ -50,3 +50,6 @@
 .routes { margin-top: 8px; font-size: 12px; }
 .routes summary { cursor: pointer; color: var(--text-secondary); font-weight: 500; }
 .routes ul { margin: 6px 0 0; padding: 0; list-style: none; font-family: var(--font-mono); font-size: 11px; line-height: 1.7; color: var(--text-secondary); word-break: break-word; }
+
+.enroll-request { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 12px; background: var(--amber-50); color: var(--amber-600); }
+.enroll-warn { margin-top: 4px; font-size: 11px; }

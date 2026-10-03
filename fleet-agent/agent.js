@@ -86,15 +86,46 @@ let backoffMs = 5000;
 const MAX_BACKOFF = 180000;
 let ws;
 
+// ---- Device token ----
+// fleet_secret is only the bootstrap secret. The server hands this device a token of its own the first time
+// (or after an admin approved it) and the agent uses that from then on. It lives next to the device id in /data.
+const TOKEN_FILE = process.env.FLEET_TOKEN_FILE || '/data/state_fleet_token';
+let token = null;
+try { token = fs.readFileSync(TOKEN_FILE, 'utf8').trim() || null; } catch {}
+function saveToken(t) {
+  token = t;
+  try { fs.writeFileSync(TOKEN_FILE, t, { mode: 0o600 }); }
+  catch (e) {
+    console.error(`WARNING: cannot store the device token in ${TOKEN_FILE} (${e.message}). ` +
+      'After a restart this device has to be approved again. Make /data persistent.');
+  }
+}
+function dropToken() { token = null; try { fs.rmSync(TOKEN_FILE, { force: true }); } catch {} }
+let tokenRefusals = 0;   // the server not knowing our token several times in a row: it was revoked or the server lost its data
+
 function connect() {
-  const wsUrl = fleetServerUrl.replace(/\/$/, '') + `/ws/${fleetSecret}`;
-  console.log('Connecting to', wsUrl);
-  ws = new WebSocket(wsUrl);
+  const wsUrl = fleetServerUrl.replace(/\/$/, '') + '/ws';
+  console.log('Connecting to', wsUrl, token ? '(with device token)' : '(with the bootstrap secret)');
+  ws = new WebSocket(wsUrl, { headers: { Authorization: `Bearer ${token || fleetSecret}` } });
+  const mine = ws;
+  let reconnecting = false;
+  const retry = () => { if (!reconnecting) { reconnecting = true; scheduleReconnect(); } };
+
+  ws.on('unexpected-response', (req, res) => {
+    const reason = res.headers['x-fleet-reason'] || String(res.statusCode);
+    res.resume(); req.destroy();
+    console.error(`Server refused the connection: ${reason}`);
+    if (token && reason === 'token_unknown' && ++tokenRefusals >= 3) {
+      console.error('The server does not know this device token any more; enrolling again with the bootstrap secret.');
+      dropToken(); tokenRefusals = 0;
+    }
+    retry();
+  });
   ws.on('open', async () => {
-    backoffMs = 5000;
+    backoffMs = 5000; tokenRefusals = 0;
     let cuosVersion = null;
     try { cuosVersion = await iacApi('cuos:version'); } catch {}
-    ws.send(JSON.stringify({
+    mine.send(JSON.stringify({
       type: 'client_hello',
       uuid,
       hostname,
@@ -106,15 +137,17 @@ function connect() {
       protocol_version: 2,
       shares
     }));
-    startHeartbeat();
   });
   ws.on('message', (data) => {
     let msg; try { msg = JSON.parse(data); } catch { return; }
-    if (msg.type === 'update_trigger') {
-      handleUpdateTrigger(msg);
+    if (msg.type === 'server_welcome') startHeartbeat();               // admitted: from here on we report
+    else if (msg.type === 'enrolled' || msg.type === 'token_rotate') {
+      if (typeof msg.token === 'string' && msg.token.startsWith('ft_')) { saveToken(msg.token); console.log(msg.type === 'enrolled' ? 'Enrolled, device token stored.' : 'Device token rotated.'); }
     }
+    else if (msg.type === 'pending') console.log(`Waiting for an administrator to approve this device (${msg.reason || ''}).`);
+    else if (msg.type === 'update_trigger') handleUpdateTrigger(msg);
   });
-  ws.on('close', scheduleReconnect);
+  ws.on('close', retry);
   ws.on('error', (err) => {
     console.error('WS error', err.message);
   });
