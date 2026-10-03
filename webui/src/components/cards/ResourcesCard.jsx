@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 function barFill(pct) {
   if (pct >= 85) return 'fill-red';
   if (pct >= 70) return 'fill-amber';

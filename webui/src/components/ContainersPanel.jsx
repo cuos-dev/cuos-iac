@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { useState, useRef } from 'preact/hooks';
 import { Fragment } from 'preact';
 import { containerStatus, containerUptime, summarize } from '../lib/status.js';

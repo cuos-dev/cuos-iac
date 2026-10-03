@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // `ip route` keywords get highlighted, like in the old UI
 const ROUTE_KW = /\b(default|via|dev|proto|scope|src|linkdown|metric)\b/g;
 

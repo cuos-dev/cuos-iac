@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Docker `ps` Status strings, e.g. "Up 3 hours", "Up 5 minutes (unhealthy)",
 // "Up 10 seconds (health: starting)", "Exited (0) 2 hours ago", "Restarting (1) 5 seconds ago".
 // kind: ok = fine, warn = transitional, bad = needs attention, idle = not running, not an error.

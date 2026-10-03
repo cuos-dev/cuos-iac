@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { useState, useEffect } from 'preact/hooks';
 
 // pref: 'system' | 'light' | 'dark'; the resolved theme goes to <html data-theme>.

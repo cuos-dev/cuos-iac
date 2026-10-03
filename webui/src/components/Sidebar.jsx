@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import IaCCard       from './cards/IaCCard.jsx';
 import NetworkCard   from './cards/NetworkCard.jsx';
 import SystemCard    from './cards/SystemCard.jsx';

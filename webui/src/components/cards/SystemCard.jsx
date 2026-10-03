@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 export default function SystemCard({ system = {}, cuosState = {} }) {
   const osVersion = cuosState?.os_version ?? cuosState?.version ?? cuosState?.cuos_version ?? '—';
   return (

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 let locale = 'de-DE', tz = 'Europe/Berlin';
 export function setFmtConfig(cfg) { locale = cfg.locale; tz = cfg.tz; }
 export function fmt(ts) {

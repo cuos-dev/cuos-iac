@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { fmt } from '../../lib/fmt.js';
 
 export default function IaCCard({ appState = {}, config = {} }) {

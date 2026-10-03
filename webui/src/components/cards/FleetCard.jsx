@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { useState, useEffect } from 'preact/hooks';
 import { fmt } from '../../lib/fmt.js';
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // ponytail: CDN Preact + htm, no build step
 import { html, render, useState, useEffect, useRef } from 'https://esm.sh/htm/preact/standalone';
 
