@@ -6,7 +6,8 @@
   "description": "Fleet management server for cuos-iac agents",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev:mock": "node dev/run.js"
   },
   "dependencies": {
     "express": "^5.2.1",
