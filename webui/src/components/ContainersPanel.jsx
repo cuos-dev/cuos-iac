@@ -1,6 +1,6 @@
 import { useState, useRef } from 'preact/hooks';
 import { Fragment } from 'preact';
-import { containerStatus } from '../lib/status.js';
+import { containerStatus, containerUptime, summarize } from '../lib/status.js';
 import '../style/containers.css';
 
 function shortImage(img) {
@@ -32,8 +32,7 @@ export default function ContainersPanel({ ps = [], sendAction }) {
   const [rowMsg, setRowMsg]     = useState({});
   const logsDialogRef = useRef(null);
 
-  const running = ps.filter(c => (c.Status || '').startsWith('Up')).length;
-  const stopped = ps.length - running;
+  const sum = summarize(ps);
 
   async function rowAction(name, command, params = {}) {
     setRowBusy(b => ({ ...b, [name]: true }));
@@ -65,8 +64,10 @@ export default function ContainersPanel({ ps = [], sendAction }) {
       <div class="card-header">
         <div class="card-title"><i class="ti ti-container" /> Containers</div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <span class="badge badge-green"><i class="ti ti-circle-filled" /> {running} running</span>
-          {stopped > 0 && <span class="badge badge-red"><i class="ti ti-circle-filled" /> {stopped} stopped</span>}
+          <span class="badge badge-green"><i class="ti ti-circle-filled" />{`${sum.ok} running`}</span>
+          {sum.warn > 0 && <span class="badge badge-amber"><i class="ti ti-circle-filled" />{`${sum.warn} transitioning`}</span>}
+          {sum.bad  > 0 && <span class="badge badge-red"><i class="ti ti-circle-filled" />{`${sum.bad} failed`}</span>}
+          {sum.idle > 0 && <span class="badge badge-gray"><i class="ti ti-circle-filled" />{`${sum.idle} exited`}</span>}
         </div>
       </div>
 
@@ -95,8 +96,8 @@ export default function ContainersPanel({ ps = [], sendAction }) {
                     <td style="padding-left:16px;"><i class="ti ti-brand-docker" style="font-size:16px;color:var(--accent);opacity:0.7;" /></td>
                     <td><div class="ct-name">{name}</div></td>
                     <td><div class="ct-image">{shortImage(c.Image || '')}</div></td>
-                    <td><span class={`badge ${cls}`}><i class={`ti ${icon}`} /> {label}</span></td>
-                    <td><span style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted);">{c.RunningFor || '—'}</span></td>
+                    <td><span class={`badge ${cls}`} title={c.Status}><i class={`ti ${icon}${label === 'starting' || label === 'removing' ? ' spin' : ''}`} />{label}</span></td>
+                    <td><span style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted);">{containerUptime(c.Status) || '—'}</span></td>
                     <td class="col-size"><span class="ct-size">{c.Size?.split(' (')[0] || '—'}</span></td>
                     <td><i class={`ti ti-chevron-down ct-chevron${isExp ? ' rotated' : ''}`} /></td>
                   </tr>

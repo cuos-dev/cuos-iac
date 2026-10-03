@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { fmt } from '../lib/fmt.js';
+import { iacHealth } from '../lib/status.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -22,7 +23,7 @@ function ProgressSteps({ steps }) {
       {steps.map((s, i) => {
         // entrypoint.sh emits 'in_progress'; the CSS knows 'running'
         const status = s.status === 'in_progress' ? 'running' : (s.status ?? 'pending');
-        const icon = status === 'done' ? 'ti-circle-check' : status === 'running' ? 'ti-loader-2 spin' : 'ti-circle';
+        const icon = status === 'done' ? 'ti-circle-check' : status === 'running' ? 'ti-loader-2 spin' : status === 'failed' ? 'ti-circle-x' : 'ti-circle';
         return (
           <div key={i} class={`progress-step step-${status}`}>
             <i class={`ti ${icon}`} /> {s.step ?? s.name ?? s.label ?? s}
@@ -44,6 +45,7 @@ export default function UpdatePanel({ appState = {}, config = {}, progress, send
 
   const poll   = config.iac_poll_interval ?? 21600;
   const manual = config.iac_manual_updates;
+  const failed = iacHealth(appState.iac_state) === 'error';
   const isUpdating = appState.iac_state === 'updating' || triggering;
   const lastMs = toMs(appState.last_iac_update_check);
 
@@ -63,6 +65,16 @@ export default function UpdatePanel({ appState = {}, config = {}, progress, send
 
   return (
     <div class="card update-panel">
+      {failed && (
+        <div class="error-banner" role="alert">
+          <i class="ti ti-alert-triangle" />
+          <div>
+            <div class="err-title">Update failed: {appState.iac_state}</div>
+            {appState.iac_error && <div class="err-detail">{appState.iac_error}</div>}
+            {appState.iac_error_date && <div class="err-date">{fmt(appState.iac_error_date)}</div>}
+          </div>
+        </div>
+      )}
       <div class="update-inner">
         <div class="timer-block">
           <div class="timer-label">{isUpdating ? 'Updating…' : 'Next update in'}</div>
@@ -82,11 +94,11 @@ export default function UpdatePanel({ appState = {}, config = {}, progress, send
               : '—'}<br />
             Branch: <strong>{config.iac_repo_branch || appState.iac_branch || '—'}</strong>
           </div>
-          {isUpdating && steps
-            ? <ProgressSteps steps={steps} />
-            : <button class="btn-update" onClick={triggerUpdate} disabled={isUpdating}>
+          {(isUpdating || failed) && steps && <ProgressSteps steps={steps} />}
+          {!(isUpdating && steps) &&
+            <button class="btn-update" onClick={triggerUpdate} disabled={isUpdating}>
                 <i class={`ti ${isUpdating ? 'ti-loader-2 spin' : 'ti-refresh'}`} />
-                {isUpdating ? 'Updating…' : 'Trigger update now'}
+                {isUpdating ? 'Updating…' : failed ? 'Retry update' : 'Trigger update now'}
               </button>}
         </div>
       </div>

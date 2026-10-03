@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
+import { iacHealth } from '../lib/status.js';
 import '../style/topbar.css';
 
 export default function Topbar({ hostname, iacState, connected }) {
@@ -11,8 +12,9 @@ export default function Topbar({ hostname, iacState, connected }) {
     return () => clearInterval(t);
   }, []);
 
-  const dotCls = connected ? (iacState === 'updating' ? 'warn' : '') : 'grey';
-  const label  = connected ? (iacState === 'updating' ? 'Updating…' : 'Connected') : 'Reconnecting…';
+  const health = iacHealth(iacState);
+  const dotCls = !connected ? 'grey' : health === 'error' ? 'err' : health === 'busy' ? 'warn' : '';
+  const label  = !connected ? 'Reconnecting…' : health === 'error' ? `Error: ${iacState}` : health === 'busy' ? 'Updating…' : 'Connected';
 
   return (
     <div class="topbar">

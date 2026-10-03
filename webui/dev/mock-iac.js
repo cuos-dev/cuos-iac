@@ -17,7 +17,7 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 // --- simulated state ---------------------------------------------------------
 
 const state = {
-  iac_state: 'idle',
+  iac_state: 'running',                // real values: starting | updating | running | "<step> failed"
   last_iac_start: iso(new Date(Date.now() - 3600e3)),
   last_iac_update_check: iso(new Date(Date.now() - 90e3)),
   iac_commit: '3f9c2a71b0d84e5c9a1e6f7d2b8c4a90e1d5f3b2',
@@ -28,6 +28,9 @@ let containers = [
   { Names: 'iac-traefik-1',  Image: 'docker.io/library/traefik:v3.1', Status: 'Up 3 hours',         RunningFor: '3 hours ago', Size: '12.3MB (virtual 189MB)', Ports: '0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp', Networks: 'iac_default', CreatedAt: '2026-10-03 07:12:01 +0200 CEST' },
   { Names: 'iac-zigbee2mqtt-1', Image: 'ghcr.io/koenkk/zigbee2mqtt:2.1', Status: 'Up 3 hours (healthy)', RunningFor: '3 hours ago', Size: '4.1MB (virtual 312MB)',  Ports: '0.0.0.0:8080->8080/tcp', Networks: 'iac_default', CreatedAt: '2026-10-03 07:12:03 +0200 CEST' },
   { Names: 'iac-mosquitto-1', Image: 'eclipse-mosquitto:2',            Status: 'Up 3 hours',         RunningFor: '3 hours ago', Size: '0B (virtual 12.6MB)',    Ports: '0.0.0.0:1883->1883/tcp', Networks: 'iac_default', CreatedAt: '2026-10-03 07:12:02 +0200 CEST' },
+  { Names: 'iac-db-migrate-1', Image: 'registry.example.com/acme/migrate:5', Status: 'Exited (0) 3 hours ago', RunningFor: '3 hours ago', Size: '0B (virtual 64MB)', Ports: '', Networks: 'iac_default', CreatedAt: '2026-10-03 07:11:58 +0200 CEST' },
+  { Names: 'iac-influxdb-1', Image: 'influxdb:2.7', Status: 'Up 5 minutes (unhealthy)', RunningFor: '3 hours ago', Size: '2MB (virtual 310MB)', Ports: '0.0.0.0:8086->8086/tcp', Networks: 'iac_default', CreatedAt: '2026-10-03 07:12:05 +0200 CEST' },
+  { Names: 'iac-nodered-1', Image: 'nodered/node-red:4', Status: 'Up 10 seconds (health: starting)', RunningFor: '10 seconds ago', Size: '1MB (virtual 420MB)', Ports: '0.0.0.0:1880->1880/tcp', Networks: 'iac_default', CreatedAt: '2026-10-03 10:12:05 +0200 CEST' },
   { Names: 'iac-grafana-1',  Image: 'registry.example.com/grafana/grafana:11', Status: 'Exited (1) 2 minutes ago', RunningFor: '3 hours ago', Size: '1.2MB (virtual 486MB)', Ports: '', Networks: 'iac_default', CreatedAt: '2026-10-03 07:12:04 +0200 CEST' },
 ];
 
@@ -53,16 +56,26 @@ setInterval(() => {
 
 // Simulated update run, mirrors the steps iac/entrypoint.sh emits
 const STEPS = ['clone_or_pull', 'verify_commit', 'decrypt_files', 'apply_system_json', 'compose_up'];
+let runs = 0;            // every odd run fails at compose_up, the next one recovers
 function runUpdate() {
   if (state.iac_state === 'updating') return;
+  const willFail = ++runs % 2 === 1;
   state.iac_state = 'updating';
   progress = [];
   log('info', '[cuos-iac] Info: update started.');
   let i = 0;
   const next = () => {
     if (i > 0) progress[i - 1] = { ...progress[i - 1], status: 'done', ts: iso() };
+    if (willFail && i === STEPS.length) {
+      progress[i - 1] = { ...progress[i - 1], status: 'failed', ts: iso() };
+      state.iac_state = 'docker compose failed';
+      state.iac_error = "docker compose up failed: service 'influxdb' is unhealthy";
+      state.iac_error_date = iso();
+      log('err', '[cuos-iac] Error: docker compose up failed.');
+      return;
+    }
     if (i === STEPS.length) {
-      state.iac_state = 'idle';
+      state.iac_state = 'running';
       state.last_iac_update_check = iso();
       state.iac_commit = [...Array(40)].map(() => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
       log('info', `[cuos-iac] Info: now at ${state.iac_commit.slice(0, 8)}.`);

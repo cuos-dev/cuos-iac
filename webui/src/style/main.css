@@ -66,12 +66,13 @@ body {
 .badge {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 11px; font-weight: 600;
-  padding: 3px 8px; border-radius: 100px;
+  padding: 3px 8px; border-radius: 100px; word-spacing: 0.12em;
 }
 .badge-green { background: var(--green-50); color: var(--green-600); }
 .badge-amber { background: var(--amber-50); color: var(--amber-600); }
 .badge-red   { background: var(--red-50);   color: var(--red-600); }
 .badge-blue  { background: var(--blue-50);  color: var(--blue-600); }
+.badge-gray  { background: var(--slate-100); color: var(--slate-600); }
 .badge i { font-size: 10px; }
 
 .commit-hash {
@@ -169,6 +170,18 @@ body {
 .step-done    { color: var(--green-600); }
 .step-running { color: var(--accent); font-weight: 500; }
 .step-pending { color: var(--text-muted); }
+.step-failed  { color: var(--red-600); font-weight: 500; }
+
+.error-banner {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--red-50); color: var(--red-600);
+  border-bottom: 1px solid var(--red-100);
+  padding: 12px 18px; font-size: 13px;
+}
+.error-banner i { font-size: 18px; margin-top: 1px; }
+.error-banner .err-title { font-weight: 600; }
+.error-banner .err-detail { font-family: var(--font-mono); font-size: 12px; margin-top: 2px; word-break: break-word; }
+.error-banner .err-date { opacity: .75; margin-top: 2px; font-size: 12px; }
 .progress-step i { font-size: 15px; }
 
 /* Spin */

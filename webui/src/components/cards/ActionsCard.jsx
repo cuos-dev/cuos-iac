@@ -50,7 +50,6 @@ export default function ActionsCard({ sendAction, ps = [] }) {
       </div>
       <div class="card-body">
         <div class="actions-list">
-          <Btn icon="ti-refresh-dot"     label="Restart all containers" k="restart" busy={busy} onClick={() => act('restart', 'update')} />
           <Btn icon="ti-git-pull-request" label="Pull repo now"          k="pull"    busy={busy} onClick={() => act('pull', 'update')} />
           <Btn icon="ti-file-text"       label="View compose file"      k="compose" busy={busy} onClick={viewCompose} />
           <Btn icon="ti-shield-check"    label="Run health check"       k="health"  busy={busy} onClick={healthCheck} />
