@@ -149,7 +149,7 @@ app.get('/api/config', (req, res) => {
 const ALLOWED = new Set([
   'update', 'cuos:update', 'cuos:shutdown', 'cuos:reboot', 'cuos:rollback', 'config',
   'docker:restart', 'docker:recreate', 'docker:stop', 'docker:start', 'dry-run',
-  'docker:logs', 'docker:remove', 'docker:version', 'compose:file',
+  'docker:logs', 'docker:remove', 'docker:version', 'compose:file', 'ps',
 ]);
 
 app.use((_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));

@@ -20,7 +20,8 @@ function ProgressSteps({ steps }) {
   return (
     <div class="progress-steps">
       {steps.map((s, i) => {
-        const status = s.status ?? 'pending';
+        // entrypoint.sh emits 'in_progress'; the CSS knows 'running'
+        const status = s.status === 'in_progress' ? 'running' : (s.status ?? 'pending');
         const icon = status === 'done' ? 'ti-circle-check' : status === 'running' ? 'ti-loader-2 spin' : 'ti-circle';
         return (
           <div key={i} class={`progress-step step-${status}`}>
