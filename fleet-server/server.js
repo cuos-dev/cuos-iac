@@ -202,7 +202,7 @@ function authenticate(minRole) {
   };
 }
 const requireAuth = authenticate('viewer');     // any signed-in user, read access
-const requireAdmin = authenticate('admin');     // triggers updates
+const requireAdmin = authenticate('admin');     // triggers updates, reads logs
 
 // the UI itself is behind the login too (it used to be served to anyone)
 app.use('/ui', requireAuth, express.static(path.join(__dirname, 'webui/dist')));
@@ -273,7 +273,8 @@ app.get('/api/metrics/:id', requireAuth, async (req, res) => {
 });
 
 // Log query proxy — 2.5 (requires FLEET_VL_URL)
-app.get('/api/logs/:id', requireAuth, async (req, res) => {
+// logs can hold personal data (ssh user names, addresses): admins only, not viewers or read-only keys
+app.get('/api/logs/:id', requireAdmin, async (req, res) => {
   if (!FLEET_VL_URL) return res.status(503).json({ error: 'not_configured' });
   const c = clients[req.params.id];
   if (!c) return res.status(404).json({ error: 'not_found' });
@@ -294,7 +295,7 @@ app.get('/api/logs/:id', requireAuth, async (req, res) => {
 });
 
 // Log tail stream via SSE — polls VL every 3s, advances cursor to avoid duplicates
-app.get('/api/logs/:id/stream', requireAuth, (req, res) => {
+app.get('/api/logs/:id/stream', requireAdmin, (req, res) => {
   if (!FLEET_VL_URL) return res.status(503).end();
   const c = clients[req.params.id];
   if (!c) return res.status(404).end();
@@ -356,7 +357,7 @@ app.get('/api/clients/:id/direct', requireAuth, (req, res) => {
   res.json({ url });
 });
 
-app.get('/api/meta', requireAuth, (req, res) => res.json({ user: { name: req.user.name, role: req.user.role }, wsNonce: UI_WS_NONCE, hasVm: !!FLEET_VM_URL, hasVl: !!FLEET_VL_URL, name: process.env.FLEET_NAME || null }));
+app.get('/api/meta', requireAuth, (req, res) => res.json({ user: { name: req.user.name, role: req.user.role }, wsNonce: UI_WS_NONCE, hasVm: !!FLEET_VM_URL, hasVl: !!FLEET_VL_URL && req.user.role === 'admin', name: process.env.FLEET_NAME || null }));
 app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
 app.get('/ui/*path', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'webui/dist/index.html')));
 

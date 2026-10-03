@@ -227,10 +227,10 @@ The server is configured through environment variables:
 | Variable | Default | Meaning |
 |---|---|---|
 | `FLEET_SECRET` | `changeme` | The agents' shared secret. The server warns while it is the default. |
-| `FLEET_USERS_FILE` | `<data dir>/users.json` | JSON array of `{ "name", "password", "role" }`. `role` is `admin` (may trigger updates) or `viewer` (read only); no role means `viewer`. Passwords may be bcrypt hashes (`$2b$…`) or plain text. |
+| `FLEET_USERS_FILE` | `<data dir>/users.json` | JSON array of `{ "name", "password", "role" }`. `role` is `admin` (may trigger updates) or `viewer` (read only, no device logs); no role means `viewer`. Passwords may be bcrypt hashes (`$2b$…`) or plain text. |
 | `FLEET_ADMIN_USER`, `FLEET_ADMIN_PASS` | `admin` / `admin` | Still work and are an admin. The server warns while the password is the default. |
 | `FLEET_API_KEYS` | — | Comma separated bearer keys for automation, with admin rights. |
-| `FLEET_API_KEYS_READONLY` | — | The same, read only. |
+| `FLEET_API_KEYS_READONLY` | — | The same, read only (no device logs). |
 | `FLEET_TRUST_PROXY` | off | Behind a reverse proxy set `true` (or a hop count), otherwise every client looks like the proxy. |
 | `FLEET_NAME` | — | Shown next to the title, e.g. `production`. |
 
