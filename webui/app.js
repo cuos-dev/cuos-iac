@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import express from 'express';
-import basicAuth from 'basic-auth';
+import { parse as parseBasicAuth } from 'basic-auth';
 import net from 'net';
 import os from 'os';
 import path from 'path';
@@ -26,6 +26,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.static(path.join(__dirname, 'dist')));
+
+// basic-auth v3 takes the header string (v2 took the request) and throws on a missing header
+const basicAuth = req => (req.headers.authorization ? parseBasicAuth(req.headers.authorization) : undefined);
 
 function checkCreds(user) {
   if (!user || user.name !== USER) return false;
