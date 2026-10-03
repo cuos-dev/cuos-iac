@@ -6,7 +6,7 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import auth from 'basic-auth';
+import { parse as parseBasicAuth } from 'basic-auth';
 import Database from 'better-sqlite3';
 import crypto from 'crypto';
 
@@ -124,6 +124,8 @@ app.use('/ui', express.static(path.join(__dirname, 'webui/dist')));
 // Auth — Basic Auth for browser, Bearer token for automation (3.3)
 const ADMIN_USER = process.env.FLEET_ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.FLEET_ADMIN_PASS || 'admin';
+// basic-auth v3 takes the header string (v2 took the request) and throws on a missing header
+const auth = req => (req.headers.authorization ? parseBasicAuth(req.headers.authorization) : undefined);
 const API_KEYS = new Set((process.env.FLEET_API_KEYS || '').split(',').filter(Boolean));
 function requireAuth(req, res, next) {
   const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
