@@ -12,7 +12,13 @@ export function useWebSocket() {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
       ws.current = new WebSocket(`${proto}://${location.host}/ws`);
       ws.current.onopen  = () => setConnected(true);
-      ws.current.onclose = () => { setConnected(false); setTimeout(connect, 3000); };
+      ws.current.onclose = () => {
+        setConnected(false);
+        // fail waiting actions now instead of letting them hit the 30s timeout
+        for (const p of pending.current.values()) p.reject(new Error('connection lost'));
+        pending.current.clear();
+        setTimeout(connect, 3000);
+      };
       ws.current.onmessage = e => {
         const msg = JSON.parse(e.data);
         if (msg.type === 'state')         setState(msg);
@@ -30,6 +36,7 @@ export function useWebSocket() {
 
   function sendAction(command, params = {}) {
     return new Promise((resolve, reject) => {
+      if (ws.current?.readyState !== 1) return reject(new Error('not connected'));
       const id = Math.random().toString(36).slice(2);
       pending.current.set(id, { resolve, reject });
       ws.current?.send(JSON.stringify({ type: 'action', id, command, ...params }));

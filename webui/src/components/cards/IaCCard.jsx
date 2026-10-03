@@ -8,21 +8,15 @@ export default function IaCCard({ appState = {}, config = {} }) {
         <span class="section-badge">Manager</span>
       </div>
       <div class="card-body" style="padding:14px 18px;">
-        <Row k="Started" v={fmt(appState.iac_started)} />
         <div class="info-row">
-          <span class="info-key">Repo URL</span>
-          <span class="info-val truncate" title={config.iac_repo_url}>{config.iac_repo_url || '—'}</span>
-        </div>
-        <Row k="Branch" v={config.iac_repo_branch || appState.iac_branch || '—'} />
-        <div class="info-row">
-          <span class="info-key">Commit</span>
-          <span class="info-val">
-            {appState.commit
-              ? <span class="commit-hash">{appState.commit.slice(0, 8)}</span>
+          <span class="info-key">Repository</span>
+          <span class="info-val truncate" title={config.iac_repo_url}>
+            {config.iac_repo_url
+              ? <a href={config.iac_repo_url} target="_blank" rel="noopener">{config.iac_repo_name || config.iac_repo_url}</a>
               : '—'}
           </span>
         </div>
-        <Row k="Repo updated" v={fmt(appState.last_iac_update_check)} />
+        <Row k="Manager started" v={fmt(appState.iac_started)} />
       </div>
     </div>
   );

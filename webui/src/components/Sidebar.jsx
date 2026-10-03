@@ -8,11 +8,11 @@ import '../style/sidebar.css';
 export default function Sidebar({ cuosState, resources = {}, appState = {}, system = {}, config, ps, sendAction }) {
   return (
     <div class="sidebar">
-      <IaCCard       appState={appState} config={config} />
-      <NetworkCard   resources={resources} />
-      <SystemCard    system={system} cuosState={cuosState} />
       <ResourcesCard resources={resources} />
       <ActionsCard   sendAction={sendAction} ps={ps} />
+      <NetworkCard   resources={resources} />
+      <SystemCard    system={system} cuosState={cuosState} />
+      <IaCCard       appState={appState} config={config} />
     </div>
   );
 }

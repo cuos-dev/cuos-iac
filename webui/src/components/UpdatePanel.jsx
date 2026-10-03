@@ -79,10 +79,10 @@ export default function UpdatePanel({ appState = {}, config = {}, progress, send
         <div class="timer-block">
           <div class="timer-label">{isUpdating ? 'Updating…' : 'Next update in'}</div>
           <div class="timer-display">
-            {manual ? '∞' : fmtCountdown(remaining)}
+            {isUpdating ? <i class="ti ti-loader-2 spin" /> : manual ? '∞' : fmtCountdown(remaining)}
           </div>
           <div class="progress-bar-wrap" style="width:100%;margin-top:8px;">
-            <div class="progress-bar-fill" style={`width:${pct}%`} />
+            <div class="progress-bar-fill" style={`width:${isUpdating ? 0 : pct}%`} />
           </div>
         </div>
         <div class="divider-v" />

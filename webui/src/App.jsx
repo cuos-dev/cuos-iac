@@ -22,7 +22,7 @@ export default function App() {
   return (
     <>
       <Topbar hostname={system?.hostname} iacState={appState?.iac_state} connected={connected} />
-      <div class="layout">
+      <div class={`layout${connected ? '' : ' stale'}`}>
         <UpdatePanel
           appState={appState ?? {}}
           config={config}

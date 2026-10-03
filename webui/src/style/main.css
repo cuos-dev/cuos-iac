@@ -215,6 +215,10 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; display: inline-block; }
 
+/* No connection: show the last data dimmed and make it inert */
+.layout.stale { opacity: 0.6; transition: opacity 0.2s; }
+.layout.stale button { pointer-events: none; }
+
 /* Responsive */
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }
