@@ -6,7 +6,8 @@
   "description": "Fleet management agent for cuos-iac host",
   "main": "agent.js",
   "scripts": {
-    "start": "node agent.js"
+    "start": "node agent.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "ws": "^8.22.0"
