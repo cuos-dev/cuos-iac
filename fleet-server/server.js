@@ -10,14 +10,14 @@ import { parse as parseBasicAuth } from 'basic-auth';
 import Database from 'better-sqlite3';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { EventEmitter } from 'events';
+import { createStore } from './store.js';
 
 const PORT          = process.env.FLEET_SERVER_PORT  || 8085;
 const WS_SECRET     = process.env.FLEET_SECRET       || 'changeme';
 const LATEST_CUOS   = process.env.FLEET_LATEST_CUOS  || null;
 const LATEST_AGENT  = process.env.FLEET_LATEST_AGENT || null;
 const UI_WS_NONCE  = crypto.randomBytes(16).toString('hex'); // per-boot, injected into the page
-const FLEET_VM_URL = process.env.FLEET_VM_URL; // VictoriaMetrics base, e.g. http://victoriametrics:8428
-const FLEET_VL_URL = process.env.FLEET_VL_URL; // VictoriaLogs base, e.g. http://victorialogs:9428
 const DATA_DIR = process.env.FLEET_DATA_DIR || '/data';
 
 if (!fs.existsSync(DATA_DIR)) {
@@ -26,6 +26,8 @@ if (!fs.existsSync(DATA_DIR)) {
 
 // --- SQLite ---
 const db = new Database(path.join(DATA_DIR, 'fleet.db'));
+db.pragma('journal_mode = WAL');     // logs arrive continuously: readers must not block the writer
+const store = createStore(db);
 db.exec(`
   CREATE TABLE IF NOT EXISTS devices (
     id TEXT PRIMARY KEY,
@@ -42,12 +44,6 @@ db.exec(`
     last_update TEXT,
     metrics TEXT
   );
-  CREATE TABLE IF NOT EXISTS metrics_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    device_id TEXT NOT NULL,
-    collected_at TEXT NOT NULL,
-    metrics TEXT NOT NULL
-  );
   CREATE TABLE IF NOT EXISTS update_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     device_id TEXT NOT NULL,
@@ -56,7 +52,6 @@ db.exec(`
     success INTEGER,
     error TEXT
   );
-  CREATE INDEX IF NOT EXISTS idx_mh_device ON metrics_history(device_id, collected_at);
   CREATE INDEX IF NOT EXISTS idx_ue_device ON update_events(device_id, ts);
 `);
 // ponytail: migrate existing DBs; ignore error if column already exists
@@ -84,8 +79,6 @@ const stmts = {
   updateStatus: db.prepare(`UPDATE devices SET status=@status, last_update=COALESCE(@lastUpdate, last_update), last_seen=@lastSeen WHERE id=@id`),
   updateSeen:   db.prepare(`UPDATE devices SET last_seen=@lastSeen WHERE id=@id`),
   updateMetrics:db.prepare(`UPDATE devices SET metrics=@metrics, last_seen=@lastSeen WHERE id=@id`),
-  insertMetrics:db.prepare(`INSERT INTO metrics_history (device_id, collected_at, metrics) VALUES (@deviceId, @collectedAt, @metrics)`),
-  pruneMetrics: db.prepare(`DELETE FROM metrics_history WHERE device_id=@deviceId AND collected_at < datetime('now', '-7 days')`),
   insertEvent:  db.prepare(`INSERT INTO update_events (device_id, ts, phase, success, error) VALUES (@deviceId, @ts, @phase, @success, @error)`),
   allDevices:   db.prepare(`SELECT * FROM devices`),
   byToken:      db.prepare(`SELECT id, token_hash, prev_token_hash FROM devices WHERE token_hash=@h OR prev_token_hash=@h`),
@@ -124,13 +117,14 @@ if (fs.existsSync(CLIENTS_FILE)) {
 // The agent is the real boundary; the server scrubs once more so stored data can never go beyond
 // the announced manifest. Field lists mirror fleet-agent/share.js.
 const NETWORK_LEVELS = ['none', 'summary', 'full'];
+const LOG_SOURCES = ['iac', 'system'];
 function sanitizeShares(raw) {
   if (!raw || typeof raw !== 'object') return null;
   return {
     resources: raw.resources !== false,
     iac_state: raw.iac_state !== false,
     network: NETWORK_LEVELS.includes(raw.network) ? raw.network : 'summary',
-    logs: raw.logs === true,
+    logs: Array.isArray(raw.logs) ? LOG_SOURCES.filter(x => raw.logs.includes(x)) : [],
     remote_update: raw.remote_update !== false,
   };
 }
@@ -142,6 +136,15 @@ function scrubResources(resources, shares) {
   const keep = new Set([...(shares.resources ? LOAD_FIELDS : []), ...(shares.network === 'full' ? NET_FULL : shares.network === 'summary' ? NET_SUMMARY : [])]);
   return Object.fromEntries(Object.entries(resources).filter(([k]) => keep.has(k)));
 }
+
+// Retention. Load samples are small; log lines are bounded by age and by a row cap per device.
+const RETENTION = {
+  sampleDays: Number(process.env.FLEET_RETENTION_DAYS) || 30,
+  logDays: Number(process.env.FLEET_LOG_RETENTION_DAYS) || 7,
+  maxLogRows: Number(process.env.FLEET_LOG_MAX_ROWS) || 20000,
+};
+const prune = () => store.prune(RETENTION).catch(e => console.error(JSON.stringify({ level: 'error', msg: 'prune failed', error: e.message })));
+prune(); setInterval(prune, 3600_000).unref();
 
 // Load all devices into memory; mark all offline until they reconnect
 db.prepare(`UPDATE devices SET status='offline'`).run();
@@ -261,28 +264,6 @@ function fireWebhook(event, device) {
   }).catch(e => console.error(JSON.stringify({ level: 'error', msg: 'webhook failed', error: e.message })));
 }
 
-// Ingest proxy — agents push through fleet-server; VM/VL stay internal
-app.post('/api/ingest/metrics', express.raw({ type: '*/*', limit: '2mb' }), (req, res) => {
-  const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
-  if (!bearer || !safeEq(bearer[1], WS_SECRET)) return res.status(401).end();
-  if (!FLEET_VM_URL) return res.status(503).end();
-  fetch(`${FLEET_VM_URL}/api/v1/import/prometheus`, { method: 'POST', body: req.body })
-    .then(r => res.status(r.status).end())
-    .catch(() => res.status(502).end());
-});
-
-app.post('/api/ingest/logs', express.raw({ type: '*/*', limit: '4mb' }), (req, res) => {
-  const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/);
-  if (!bearer || !safeEq(bearer[1], WS_SECRET)) return res.status(401).end();
-  if (!FLEET_VL_URL) return res.status(503).end();
-  fetch(`${FLEET_VL_URL}/insert/jsonline`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-ndjson' },
-    body: req.body,
-  }).then(r => res.status(r.status).end())
-    .catch(() => res.status(502).end());
-});
-
 // List clients
 app.get('/api/clients', requireAuth, (req, res) => {
   res.json(publicDevices());
@@ -296,74 +277,51 @@ app.get('/api/clients/:id', requireAuth, (req, res) => {
   res.json({ ...publicDevice(c), recent_events: events });
 });
 
-// Historical metrics proxy — 2.4 (requires FLEET_VM_URL)
+// Load history from the database (what the agents report over their connection)
 app.get('/api/metrics/:id', requireAuth, async (req, res) => {
-  if (!FLEET_VM_URL) return res.status(503).json({ error: 'not_configured' });
   const c = clients[req.params.id];
   if (!c) return res.status(404).json({ error: 'not_found' });
   const ranges = { '1h': [3600, 60], '24h': [86400, 300], '7d': [604800, 3600] };
   const [secs, step] = ranges[req.query.range] || ranges['1h'];
-  const end = Math.floor(Date.now() / 1000), start = end - secs;
+  const to = Math.floor(Date.now() / 1000);
   try {
-    const results = await Promise.all(['cuos_cpu_usage', 'cuos_ram_percent', 'cuos_disk_percent'].map(async m => {
-      const qs = new URLSearchParams({ query: `${m}{uuid="${c.id}"}`, start, end, step });
-      const r = await fetch(`${FLEET_VM_URL}/api/v1/query_range?${qs}`).then(r => r.json());
-      return { metric: m, values: r?.data?.result?.[0]?.values || [] };
-    }));
-    res.json(results);
-  } catch (e) { res.status(502).json({ error: e.message }); }
+    const rows = await store.series(c.id, to - secs, to, step);
+    const pick = k => rows.filter(r => r[k] != null).map(r => [r.t, r[k]]);
+    res.json([{ metric: 'cuos_cpu_usage', values: pick('cpu') }, { metric: 'cuos_ram_percent', values: pick('ram') }, { metric: 'cuos_disk_percent', values: pick('disk') }]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Log query proxy — 2.5 (requires FLEET_VL_URL)
-// logs can hold personal data (ssh user names, addresses): admins only, not viewers or read-only keys
+// Device logs (admins only: they can hold personal data). Filters: q (text in message or unit),
+// source (iac | system), level (a syslog priority 0-7: shows that and everything more severe).
+const logFilter = query => ({
+  q: typeof query.q === 'string' && query.q ? query.q.slice(0, 200) : undefined,
+  source: LOG_SOURCES.includes(query.source) ? query.source : undefined,
+  maxPriority: /^[0-7]$/.test(query.level) ? Number(query.level) : undefined,
+});
+const matchLog = (r, f) => (!f.source || r.source === f.source)
+  && (f.maxPriority === undefined || r.priority <= f.maxPriority)
+  && (!f.q || `${r.message}`.toLowerCase().includes(f.q.toLowerCase()) || `${r.unit || ''}`.toLowerCase().includes(f.q.toLowerCase()));
+
 app.get('/api/logs/:id', requireAdmin, async (req, res) => {
-  if (!FLEET_VL_URL) return res.status(503).json({ error: 'not_configured' });
   const c = clients[req.params.id];
   if (!c) return res.status(404).json({ error: 'not_found' });
-  const base = `hostname:${JSON.stringify(String(c.hostname))}`;
-  const q = req.query.q ? `${base} AND (${req.query.q})` : base;
-  const limit = Math.min(Number(req.query.limit) || 100, 500);
-  try {
-    const r = await fetch(`${FLEET_VL_URL}/select/logsql/query`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ query: q, limit: String(limit) }),
-    });
-    const text = await r.text();
-    const logs = text.trim().split('\n').filter(Boolean)
-      .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-    res.json(logs);
-  } catch (e) { res.status(502).json({ error: e.message }); }
+  try { res.json(await store.queryLogs(c.id, { ...logFilter(req.query), limit: req.query.limit })); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Log tail stream via SSE — polls VL every 3s, advances cursor to avoid duplicates
-app.get('/api/logs/:id/stream', requireAdmin, (req, res) => {
-  if (!FLEET_VL_URL) return res.status(503).end();
+// live tail: the last lines, then every batch as it arrives
+const logBus = new EventEmitter().setMaxListeners(0);
+app.get('/api/logs/:id/stream', requireAdmin, async (req, res) => {
   const c = clients[req.params.id];
   if (!c) return res.status(404).end();
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
   res.flushHeaders();
-  const userFilter = req.query.q ? ` AND (${req.query.q})` : '';
-  const query = `hostname:${JSON.stringify(String(c.hostname))}${userFilter}`;
-  let since = new Date(Date.now() - 60_000).toISOString();
-  async function poll() {
-    try {
-      const r = await fetch(`${FLEET_VL_URL}/select/logsql/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ query, limit: '200', start: since }),
-      });
-      const lines = (await r.text()).trim().split('\n').filter(Boolean);
-      const logs = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-      if (logs.length) {
-        since = new Date(new Date(logs.at(-1)._time).getTime() + 1).toISOString();
-        for (const log of logs) res.write(`data: ${JSON.stringify(log)}\n\n`);
-      }
-    } catch {}
-  }
-  poll();
-  const timer = setInterval(poll, 3000);
-  req.on('close', () => clearInterval(timer));
+  const f = logFilter(req.query), send = r => res.write(`data: ${JSON.stringify(r)}\n\n`);
+  const onRows = rows => rows.filter(r => matchLog(r, f)).forEach(send);
+  logBus.on(c.id, onRows);                                   // subscribe first so nothing falls between backlog and live
+  const keepalive = setInterval(() => res.write(': keepalive\n\n'), 25_000);
+  req.on('close', () => { clearInterval(keepalive); logBus.off(c.id, onRows); });
+  try { (await store.queryLogs(c.id, { ...f, limit: 50 })).forEach(send); } catch {}
 });
 
 // Bulk update trigger
@@ -401,15 +359,15 @@ app.get('/api/clients/:id/direct', requireAuth, (req, res) => {
   res.json({ url });
 });
 
-app.get('/api/meta', requireAuth, (req, res) => res.json({ user: { name: req.user.name, role: req.user.role }, wsNonce: UI_WS_NONCE, hasVm: !!FLEET_VM_URL, hasVl: !!FLEET_VL_URL && req.user.role === 'admin', name: process.env.FLEET_NAME || null }));
+app.get('/api/meta', requireAuth, (req, res) => res.json({ user: { name: req.user.name, role: req.user.role }, wsNonce: UI_WS_NONCE, hasMetrics: true, hasLogs: req.user.role === 'admin', name: process.env.FLEET_NAME || null }));
 app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
 app.get('/ui/*path', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'webui/dist/index.html')));
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 1_000_000 });   // an agent's batch is far below this
 const wsConnections = new Map();   // device id -> admitted agent connection
 const pendingConns = new Map();    // device id -> connection waiting for an admin
-const uiWss = new WebSocketServer({ noServer: true });
+const uiWss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
 const uiConnections = new Set();
 
 // what the UI and the API get: no internals, and whether a waiting device is still connected
@@ -487,6 +445,7 @@ server.on('upgrade', (req, socket, head) => {
   if (parts.length === 1 && parts[0] === 'ws') return agentUpgrade(req, socket, head);
   if (parts.length === 2 && parts[0] === 'ui-ws' && safeEq(parts[1], UI_WS_NONCE)) {
     return uiWss.handleUpgrade(req, socket, head, ws => {
+      ws.on('error', wsError('ui'));
       uiConnections.add(ws);
       ws.send(statePayload());
       ws.on('close', () => uiConnections.delete(ws));
@@ -569,7 +528,44 @@ function onHello(ws, msg) {
   broadcastState();
 }
 
+// --- Log intake -------------------------------------------------------------------------------
+// The server decides who a line belongs to (the connection), and what it accepts: only sources the
+// device announced, bounded size, and a rate limit per device so one noisy host cannot fill the disk.
+const LOG_BATCH_MAX = 500, LOG_LINE_MAX = 2000, LOG_BURST = 2000, LOG_PER_SEC = 50;
+const logBuckets = new Map();   // device id -> { tokens, last }
+function logBudget(id, wanted) {
+  const now = Date.now(), b = logBuckets.get(id) || { tokens: LOG_BURST, last: now };
+  b.tokens = Math.min(LOG_BURST, b.tokens + (now - b.last) / 1000 * LOG_PER_SEC); b.last = now;
+  const take = Math.min(wanted, Math.floor(b.tokens));
+  b.tokens -= take; logBuckets.set(id, b);
+  return take;
+}
+function ingestLogs(id, entries) {
+  const allowed = clients[id]?.shares?.logs || [];
+  if (!allowed.length || !Array.isArray(entries)) return;
+  const now = Date.now();
+  const batch = entries.slice(0, Math.min(LOG_BATCH_MAX, logBudget(id, entries.length)));
+  const rows = [];
+  for (const e of batch) {
+    if (!e || typeof e.m !== 'string' || !allowed.includes(e.s)) continue;
+    const t = Number(e.t);
+    rows.push({
+      ts: Number.isFinite(t) && t > now - 86400_000 && t < now + 300_000 ? Math.round(t) : now,   // trust the device's clock only within reason
+      source: e.s, unit: typeof e.u === 'string' ? e.u.slice(0, 64) : null,
+      priority: Number.isInteger(e.p) && e.p >= 0 && e.p <= 7 ? e.p : 6, message: e.m.slice(0, LOG_LINE_MAX),
+    });
+  }
+  if (!rows.length) return;
+  store.addLogs(id, rows).then(inserted => logBus.emit(id, inserted))
+    .catch(e => console.error(JSON.stringify({ level: 'error', msg: 'log insert failed', error: e.message })));
+}
+
+// A broken or oversized frame is reported as an 'error' on the connection; without a listener that
+// would take the whole process down. Log it, the library closes the connection itself.
+const wsError = who => err => console.warn(JSON.stringify({ level: 'warn', msg: `${who} connection error`, error: err.message }));
+
 wss.on('connection', (ws) => {
+  ws.on('error', wsError('agent'));
   ws.on('message', (data) => {
     let msg;
     try { msg = JSON.parse(data); } catch { return; }
@@ -593,6 +589,8 @@ wss.on('connection', (ws) => {
     } else if (msg.type === 'update_denied') {
       stmts.insertEvent.run({ deviceId: uuid, ts: now, phase: 'denied', success: 0, error: String(msg.reason || 'not permitted').slice(0, 200) });
       broadcastState();
+    } else if (msg.type === 'logs') {
+      ingestLogs(uuid, msg.entries);
     } else if (msg.type === 'metrics') {
       const { state, resources, app_state } = msg;
       const shares = clients[uuid].shares;
@@ -601,8 +599,12 @@ wss.on('connection', (ws) => {
       clients[uuid].last_seen = now;
       clients[uuid].metrics = metricsObj;
       stmts.updateMetrics.run({ metrics: metricsJson, lastSeen: now, id: uuid });
-      stmts.insertMetrics.run({ deviceId: uuid, collectedAt: now, metrics: metricsJson });
-      stmts.pruneMetrics.run({ deviceId: uuid });
+      const r = metricsObj.resources;
+      if (r && typeof r === 'object' && Object.keys(r).length && shares?.resources !== false) {
+        const n = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+        store.addSample(uuid, Math.floor(Date.now() / 1000), { cpu: n(r.cpu_usage), ram: n(r.ram_percent), disk: n(r.disk_percent), memUsed: n(r.mem_used_mb), diskUsed: n(r.disk_used_mb) })
+          .catch(e => console.error(JSON.stringify({ level: 'error', msg: 'sample failed', error: e.message })));
+      }
       broadcastState();
     }
   });
@@ -656,6 +658,22 @@ app.post('/api/clients/:id/reject', requireAdmin, (req, res) => {
   else { stmts.setRequest.run({ id, since: null, addr: null, hostname: null }); setEnrollment(id, { request: null }); }
   broadcastState();
   res.json({ status: 'rejected' });
+});
+
+// forget a device: disconnects it and deletes everything stored about it (record, history, logs, events)
+app.delete('/api/clients/:id', requireAdmin, async (req, res) => {
+  const id = req.params.id, c = clients[id];
+  if (!need(res, c)) return;
+  wsConnections.get(id)?.close(1008, 'forgotten');
+  pendingConns.get(id)?.close(1008, 'forgotten');
+  wsConnections.delete(id); pendingConns.delete(id); logBuckets.delete(id);
+  delete clients[id];
+  stmts.deleteDevice.run({ id });
+  db.prepare('DELETE FROM update_events WHERE device_id=?').run(id);
+  await store.deleteDevice(id);
+  audit('device forgotten', { id, by: req.user.name });
+  broadcastState();
+  res.json({ status: 'deleted' });
 });
 
 // take a device's token away: it must be approved again before it can connect

@@ -13,6 +13,6 @@ EXPOSE 8085
 ENV FLEET_SERVER_PORT=8085
 COPY package*.json ./
 RUN apk add --no-cache python3 make g++ && npm ci --omit=dev
-COPY server.js ./
+COPY server.js store.js ./
 COPY --from=build-ui /app/webui/dist ./webui/dist
 CMD ["node", "server.js"]

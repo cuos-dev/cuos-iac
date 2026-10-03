@@ -4,7 +4,7 @@ import { MetricsPanel } from './MetricsPanel.jsx';
 import { LogStream } from './LogStream.jsx';
 import { ApproveReject } from './EnrollmentActions.jsx';
 import { useAction } from '../hooks/useAction.js';
-import { sharesOf, sharesLogs } from '../lib/shares.js';
+import { sharesOf, sharesLogs, logSources } from '../lib/shares.js';
 
 export function DetailPanel({ device: d, meta, canAct }) {
   const [events, setEvents] = useState(null);
@@ -72,13 +72,13 @@ export function DetailPanel({ device: d, meta, canAct }) {
 
           <section>
             <h4>Sharing</h4>
-            {sh.legacy
-              ? <span class="muted">Legacy agent (protocol 1): sends everything, the owner cannot limit it. Update the agent to get privacy settings.</span>
+            {sh.unknown
+              ? <span class="muted">This record has no sharing information yet; it appears when the device connects.</span>
               : <ul class="share-list">
                   <ShareRow label="Load (CPU, RAM, disk)" on={sh.resources} />
                   <ShareRow label="IaC state" on={sh.iac_state} />
                   <ShareRow label="Addresses" on={sh.network !== 'none'} note={sh.network} />
-                  <ShareRow label="Logs" on={sh.logs} />
+                  <ShareRow label="Logs" on={logSources(d).length > 0} note={logSources(d).join(', ') || undefined} />
                   <ShareRow label="Remote update" on={sh.remote_update} note={sh.remote_update ? 'allowed' : 'not allowed'} />
                 </ul>}
           </section>
@@ -108,8 +108,8 @@ export function DetailPanel({ device: d, meta, canAct }) {
           </section>
         </div>
 
-        {meta?.hasVm && sh.resources !== false && <MetricsPanel deviceId={d.id} />}
-        {meta?.hasVl && sharesLogs(d) && <LogStream device={d} />}
+        {meta?.hasMetrics && sh.resources !== false && <MetricsPanel deviceId={d.id} />}
+        {meta?.hasLogs && sharesLogs(d) && <LogStream device={d} />}
       </td>
     </tr>
   );
@@ -125,7 +125,7 @@ function ShareRow({ label, on, note }) {
 }
 
 function Enrollment({ device: d, canAct }) {
-  const rotate = useAction(), revoke = useAction();
+  const rotate = useAction(), revoke = useAction(), forget = useAction();
   const e = d.enrollment || {};
   const state = e.state === 'active' ? 'token active' : e.state === 'revoked' ? 'revoked: must be approved again' : e.state === 'pending' ? 'waiting for approval' : 'not enrolled';
   return (
@@ -140,6 +140,14 @@ function Enrollment({ device: d, canAct }) {
           <div class="muted" style="font-size:11px">"{e.request.hostname || '?'}" from {String(e.request.addr || '?').replace('::ffff:', '')} · {fmt.date(e.request.since)}{e.request.live ? '' : ' · not connected right now'}</div>
           {e.state !== 'pending' && d.status === 'online' && <div class="enroll-warn"><i class="ti ti-alert-triangle" /> The real device is online with its token. Approving gives the requester a new token and the old one stops working.</div>}
           {canAct && <div style="margin-top:6px"><ApproveReject device={d} /></div>}
+        </div>
+      )}
+      {canAct && (
+        <div style="margin-top:8px">
+          <button class="tbl-btn" disabled={forget.pending} title="Remove the device and everything stored about it: history, logs, events"
+            onClick={() => confirm(`Forget ${d.hostname || d.id}? Its record, load history, logs and update events are deleted. If the device still has its token it can enrol again as a new device.`) && forget.run(`/api/clients/${d.id}`, 'DELETE')}>
+            <i class="ti ti-trash" /> Forget device
+          </button>
         </div>
       )}
       {canAct && e.has_token && (

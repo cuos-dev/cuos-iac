@@ -1,9 +1,10 @@
-// What a device announces it shares (protocol 2). null = a protocol 1 agent: it sends everything.
-export const sharesOf = d => d.shares ?? { resources: true, iac_state: true, network: 'full', logs: null, remote_update: true, legacy: true };
+// What a device announces it shares. (null only for a record that predates the manifest.)
+export const sharesOf = d => d.shares ?? { resources: true, iac_state: true, network: 'summary', logs: [], remote_update: true, unknown: true };
 
 export const canRemoteUpdate = d => sharesOf(d).remote_update !== false;
-// logs: true/false from a v2 agent, null (unknown) from a v1 agent: show the panel, it may have data
-export const sharesLogs = d => sharesOf(d).logs !== false;
+// the log sources a device announced ("iac", "system"); none = nothing is forwarded
+export const logSources = d => sharesOf(d).logs ?? [];
+export const sharesLogs = d => logSources(d).length > 0;
 
 // every address a device reported, for search and display
 export function addressesOf(d) {

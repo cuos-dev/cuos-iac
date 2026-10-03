@@ -1,11 +1,11 @@
-# Fleet Server stack — spin up fleet-server + VictoriaMetrics + VictoriaLogs
+# Fleet Server — one container, one volume. History and logs live in a SQLite database in /data.
 #
-# Optionally copy .env.example to .env to override defaults, then:
 #   docker compose up -d --build
 #
-# Agent system.json entries to point at this stack (replace <host> with your server IP/hostname):
-#   "fleet_server_url": "http://<host>:8085"
-#   "fleet_log_units":  ["my-service.service"]   # optional: enable log forwarding
+# Run it behind TLS (a reverse proxy): device tokens travel in the Authorization header.
+# Agent system.json entries to point at it (replace <host> with your server name):
+#   "fleet_server_url": "https://<host>"
+#   "fleet_secret":     "<the FLEET_SECRET below>"
 
 services:
   fleet-server:
@@ -17,36 +17,13 @@ services:
       FLEET_ENROLLMENT: ${FLEET_ENROLLMENT:-auto}
       FLEET_ADMIN_USER: ${FLEET_ADMIN_USER:-admin}
       FLEET_ADMIN_PASS: ${FLEET_ADMIN_PASS:-admin}
-      FLEET_VM_URL:     http://victoriametrics:8428
-      FLEET_VL_URL:     http://victorialogs:9428
       FLEET_WEBHOOK_URL:    ${FLEET_WEBHOOK_URL:-}
       FLEET_WEBHOOK_EVENTS: ${FLEET_WEBHOOK_EVENTS:-}
+      FLEET_RETENTION_DAYS:     ${FLEET_RETENTION_DAYS:-30}
+      FLEET_LOG_RETENTION_DAYS: ${FLEET_LOG_RETENTION_DAYS:-7}
     volumes:
       - fleet-data:/data
-    depends_on:
-      - victoriametrics
-      - victorialogs
-    restart: unless-stopped
-
-  victoriametrics:
-    image: victoriametrics/victoria-metrics:latest
-    volumes:
-      - vm-data:/storage
-    command:
-      - -storageDataPath=/storage
-      - -retentionPeriod=${VM_RETENTION:-90d}
-    restart: unless-stopped
-
-  victorialogs:
-    image: docker.io/victoriametrics/victoria-logs:latest
-    volumes:
-      - vl-data:/vlogs-storage
-    command:
-      - -storageDataPath=/vlogs-storage
-      - -retentionPeriod=${VL_RETENTION:-90d}
     restart: unless-stopped
 
 volumes:
   fleet-data:
-  vm-data:
-  vl-data:

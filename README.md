@@ -231,7 +231,7 @@ is announced to the server, and the server's UI shows what is not available:
   "resources": true,
   "iac_state": true,
   "network": "summary",
-  "logs": "off",
+  "logs": [],
   "remote_update": true
 }
 ```
@@ -241,7 +241,8 @@ is announced to the server, and the server's UI shows what is not available:
 | `resources` | `true`, `false` | CPU, RAM, disk, uptime. |
 | `iac_state` | `true`, `false` | State, commit and error of the IaC manager. |
 | `network` | `"summary"`, `"full"`, `"none"` | `summary`: the default route address only. `full`: all interfaces, DNS, NTP and routes. `none`: no addresses. |
-| `logs` | forwarding as configured, `"off"` | Logs are only forwarded for the units named in `fleet_log_units`; `"off"` stops that regardless. |
+| `logs` | `[]`, or a list of `"iac"` and/or `"system"` | Which logs leave the device. `"iac"`: the IaC manager's own lines from the CuOS log. `"system"`: the journal units named in `fleet_log_units` (without units it shares nothing). Anything else, including `true` or `"all"`, shares nothing. Container logs are not supported. |
+| `logs_redact` | `{ "builtin": true, "ips": false, "patterns": [] }` | Lines are scrubbed before they are sent: passwords, tokens, bearer headers, private keys and credentials in URLs by default (`builtin`); `ips` keeps only the first three octets of IPv4 addresses; `patterns` are your own regular expressions. |
 | `remote_update` | `true`, `false` | Whether the server may ask the device to check its repository now. The device still applies only what the repository says, with the usual signature and digest checks. The agent logs who asked. |
 
 An invalid value falls back to the safe choice, never to a wider one. Agents older than this
@@ -260,6 +261,18 @@ The server is configured through environment variables:
 | `FLEET_API_KEYS_READONLY` | — | The same, read only (no device logs). |
 | `FLEET_TRUST_PROXY` | off | Behind a reverse proxy set `true` (or a hop count), otherwise every client looks like the proxy. |
 | `FLEET_NAME` | — | Shown next to the title, e.g. `production`. |
+| `FLEET_RETENTION_DAYS` | `30` | How long load history is kept. |
+| `FLEET_LOG_RETENTION_DAYS` | `7` | How long device logs are kept. |
+| `FLEET_LOG_MAX_ROWS` | `20000` | Log lines kept per device, newest first. |
+| `FLEET_DATA_DIR` | `/data` | Holds `fleet.db`, a SQLite database: devices, load history, logs. Back this up if you need the history. |
+
+### Metrics and logs
+
+Everything an agent reports travels over its one connection: state, load samples and log lines. The
+server stores them in its SQLite database; there is no other service to run. The server decides whose
+data it is (the connection), accepts only the log sources the device announced, cuts lines at 2000
+characters and limits the rate per device. Admins can read a device's logs in the UI, viewers cannot;
+an administrator can **forget** a device, which deletes its record, history, logs and update events.
 
 ### Enrolment
 

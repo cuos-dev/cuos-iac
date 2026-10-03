@@ -5,10 +5,10 @@ export function useAction() {
   const [done, setDone]       = useState(false);
   const [error, setError]     = useState(null);
 
-  async function run(url) {
+  async function run(url, method = 'POST') {
     setPending(true); setDone(false); setError(null);
     try {
-      const r = await fetch(url, { method: 'POST' });
+      const r = await fetch(url, { method });
       if (!r.ok) throw new Error(await r.text());
       setDone(true);
       setTimeout(() => setDone(false), 3000);

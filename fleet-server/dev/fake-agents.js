@@ -3,6 +3,7 @@
 // Usage: node dev/fake-agents.js   (FLEET_URL, FLEET_SECRET, FAKE_AGENTS to override)
 import WebSocket from 'ws';
 import { resolveShares, filterResources, filterAppState } from '../../fleet-agent/share.js';   // the real agent's filters
+import { makeRedactor } from '../../fleet-agent/redact.js';
 
 const URL_ = process.env.FLEET_URL || 'ws://127.0.0.1:8085';
 const SECRET = process.env.FLEET_SECRET || 'dev-fleet-secret';
@@ -24,16 +25,17 @@ function spec(i) {
     base: { cpu: rand(8, 70), ram: rand(30, 90), disk: rand(20, 92) },
     ip: `192.168.${10 + (i % 4)}.${20 + n}`,
     // privacy profile, as the owner would write it in system.json
-    share: { 4: { network: 'full' }, 1: { network: 'full' }, 2: { remote_update: false }, 6: { resources: false },
+    share: { 0: { logs: ['iac'] }, 3: { logs: ['iac'] }, 6: { logs: ['iac', 'system'] }, 9: { logs: ['iac'] }, 12: { logs: ['iac'] }, 15: { logs: ['iac', 'system'], logs_redact: { ips: true } }, 4: { network: 'full' }, 1: { network: 'full' }, 2: { remote_update: false }, 6: { resources: false },
              7: { network: 'none' }, 8: { iac_state: false }, 10: { remote_update: false, network: 'full' } }[i],
-    logs: i % 3 === 0 ? ['cuos-iac.service'] : [],
+    units: ['sshd.service', 'docker.service'],
   };
 }
 
 const tokens = new Map();   // device id -> token, stands in for /data/state_fleet_token
 
 function run(a) {
-  const shares = resolveShares({ fleet_share: a.share, fleet_log_units: a.logs });
+  const shares = resolveShares({ fleet_share: a.share, fleet_log_units: a.units });
+  const redact = makeRedactor(a.share?.logs_redact);
   const headers = { Authorization: `Bearer ${tokens.get(a.uuid) || SECRET}` };
   const ws = new WebSocket(`${URL_}/ws`, { headers });
   let iac = a.mode === 'failing' ? 'docker compose failed' : 'running';
@@ -47,6 +49,23 @@ function run(a) {
     network: [{ interface: 'eth0', ip: `${a.ip}/24` }, { interface: 'eth1', ip: '10.10.0.5/24' }],
     dns_servers: ['192.168.1.1', '1.1.1.1'], ntp_servers: ['pool.ntp.org'], ntp_service_active: true, ntp_synchronizede: true,
     routes: [`default via ${a.ip.replace(/\.\d+$/, '.1')} dev eth0 proto dhcp metric 100`, '10.10.0.0/24 dev eth1 proto kernel scope link src 10.10.0.5'] });
+
+  // log lines as the real agent would queue them (scrubbed first); only the sources this device shares
+  const LINES = [
+    ['iac', 'cuos-iac', 6, 'Info: no new commit.'], ['iac', 'cuos-iac', 6, 'Info: repo is up to date.'],
+    ['iac', 'cuos-iac', 4, 'Warning: registry slow, retrying pull'], ['iac', 'cuos-iac', 3, 'Error: docker compose up failed for service influxdb'],
+    ['system', 'sshd.service', 6, 'Accepted publickey for deploy from 192.168.1.20 port 51234'],
+    ['system', 'sshd.service', 4, 'Failed password for root from 203.0.113.9 port 40022 password=hunter2'],
+    ['system', 'docker.service', 6, 'clone https://bot:s3cret@git.example.com/acme/home-iac.git done'],
+  ];
+  const sendLogs = () => {
+    const entries = [];
+    for (let k = 0; k < 1 + Math.floor(rand(0, 3)); k++) {
+      const [s, u, p, m] = pick(LINES);
+      if (shares.logs.includes(s)) entries.push({ t: Date.now(), s, u, p, m: redact(m) });
+    }
+    if (entries.length) send({ type: 'logs', entries });
+  };
 
   const metrics = () => {
     const jitter = (v, d) => Math.max(1, Math.min(99, v + rand(-d, d)));
@@ -70,7 +89,7 @@ function run(a) {
       a.seen = true;
       metrics();
       if (a.mode === 'offline') { setTimeout(() => ws.close(), 1500); return; }     // known to the server, never comes back
-      timers = [setInterval(() => send({ type: 'heartbeat', uuid: a.uuid }), 10000), setInterval(metrics, 5000)];
+      timers = [setInterval(() => send({ type: 'heartbeat', uuid: a.uuid }), 10000), setInterval(metrics, 5000), setInterval(sendLogs, 5000)];
       // lost /data: forget the token and come back with the bootstrap secret only -> has to be approved
       if (a.mode === 'amnesia' && !a.forgot) setTimeout(() => { a.forgot = true; tokens.delete(a.uuid); ws.close(); }, 12000);
     }

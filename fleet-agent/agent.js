@@ -8,6 +8,7 @@ import net from 'net';
 import { spawn } from 'child_process';
 import { createRequire } from 'module';
 import { resolveShares, filterResources, filterAppState } from './share.js';
+import { makeRedactor } from './redact.js';
 const agentVersion = createRequire(import.meta.url)('./package.json').version;
 
 // ---- Configuration Loading ----
@@ -45,9 +46,6 @@ if (!fleetServerUrl) {
   process.exit(1);
 }
 
-const baseUrl = fleetServerUrl.replace(/\/$/, '');
-const vmIngestUrl  = `${baseUrl}/api/ingest/metrics`;
-const vlIngestUrl  = `${baseUrl}/api/ingest/logs`;
 
 // ---- UUID persistence ----
 const UUID_FILE = process.env.FLEET_UUID_FILE || '/data/state_fleet_uuid';
@@ -140,14 +138,14 @@ function connect() {
   });
   ws.on('message', (data) => {
     let msg; try { msg = JSON.parse(data); } catch { return; }
-    if (msg.type === 'server_welcome') startHeartbeat();               // admitted: from here on we report
+    if (msg.type === 'server_welcome') { admitted = true; startHeartbeat(); }   // admitted: from here on we report
     else if (msg.type === 'enrolled' || msg.type === 'token_rotate') {
       if (typeof msg.token === 'string' && msg.token.startsWith('ft_')) { saveToken(msg.token); console.log(msg.type === 'enrolled' ? 'Enrolled, device token stored.' : 'Device token rotated.'); }
     }
     else if (msg.type === 'pending') console.log(`Waiting for an administrator to approve this device (${msg.reason || ''}).`);
     else if (msg.type === 'update_trigger') handleUpdateTrigger(msg);
   });
-  ws.on('close', retry);
+  ws.on('close', () => { admitted = false; retry(); });
   ws.on('error', (err) => {
     console.error('WS error', err.message);
   });
@@ -260,52 +258,59 @@ async function collectAndSendMetrics() {
   } catch (e) {
     console.error('Failed to send metrics', e.message);
   }
-  // 4.1 push metrics
-  if (shares.resources) pushMetricsToVM(vmIngestUrl, resourcesData);
 }
 
-// 4.1 VictoriaMetrics push (Prometheus text format)
-function pushMetricsToVM(vmUrl, resources) {
-  const labels = `hostname="${hostname}",uuid="${uuid}"${tags.length ? `,tags="${tags.join(',')}"` : ''}`;
-  const ts = Date.now();
-  const body = [
-    ['cuos_cpu_usage',     resources.cpu_usage],
-    ['cuos_ram_percent',   resources.ram_percent],
-    ['cuos_disk_percent',  resources.disk_percent],
-    ['cuos_mem_used_mb',   resources.mem_used_mb],
-    ['cuos_mem_total_mb',  resources.mem_total_mb],
-    ['cuos_disk_used_mb',  resources.disk_used_mb],
-    ['cuos_disk_total_mb', resources.disk_total_mb],
-  ].filter(([, v]) => v != null)
-   .map(([n, v]) => `${n}{${labels}} ${v} ${ts}`)
-   .join('\n');
-  if (!body) return;
-  fetch(vmUrl, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${fleetSecret}` },
-    body,
-  }).catch(e => console.error('VictoriaMetrics push failed:', e.message));
+// ---- Logs ----
+// Sources are chosen by the owner (fleet_share.logs): "iac" = the IaC manager's lines from the CuOS log,
+// "system" = journal units listed in fleet_log_units. Lines are scrubbed (redact.js), queued with a hard cap
+// and sent over the same connection as everything else, only once the server has admitted this device.
+// What does not fit while offline is dropped, oldest first.
+const redact = makeRedactor(systemConfig.fleet_share?.logs_redact, m => console.error(m));
+const QUEUE_MAX = 2000, BATCH = 400;
+const logQueue = [];
+let admitted = false;
+
+function queueLog(source, unit, priority, message, time = Date.now()) {
+  const m = redact(String(message)).slice(0, 2000);
+  if (!m.trim()) return;
+  logQueue.push({ t: time, s: source, u: String(unit || '').slice(0, 64), p: priority, m });
+  if (logQueue.length > QUEUE_MAX) logQueue.splice(0, logQueue.length - QUEUE_MAX);
 }
 
-// 4.2 VictoriaLogs log forwarding via journalctl
-function startLogForwarding(logsUrl, units) {
+setInterval(() => {
+  if (!admitted || !ws || ws.readyState !== WebSocket.OPEN) return;
+  while (logQueue.length) {
+    const batch = logQueue.splice(0, BATCH);
+    try { ws.send(JSON.stringify({ type: 'logs', entries: batch })); }
+    catch { logQueue.unshift(...batch); return; }
+  }
+}, 5000);
+
+// "iac": the CuOS log API returns {date, level, message}; our own lines carry this prefix
+const IAC_PREFIX = '[cuos-iac] ';
+const PRIORITY = { err: 3, error: 3, warn: 4, warning: 4, info: 6, debug: 7 };
+let lastIacDate = '';
+async function pollIacLog() {
+  try {
+    const lines = await iacApi('cuos:log');
+    if (!Array.isArray(lines)) return;
+    const fresh = lastIacDate ? lines.filter(l => l.date > lastIacDate) : lines.slice(-50);
+    for (const l of fresh) {
+      if (String(l.message || '').startsWith(IAC_PREFIX)) queueLog('iac', 'cuos-iac', PRIORITY[l.level] ?? 6, l.message.slice(IAC_PREFIX.length), Date.parse(l.date) || Date.now());
+    }
+    if (fresh.length) lastIacDate = fresh.at(-1).date;
+  } catch {}
+}
+
+// "system": journalctl for the named units
+function startJournal(units) {
   let proc;
   try {
     proc = spawn('journalctl', ['-f', '-n', '0', '--output=json', ...units.flatMap(u => ['-u', u])]);
   } catch {
-    console.error('journalctl unavailable, log forwarding disabled');
+    console.error('journalctl unavailable, system log forwarding disabled');
     return;
   }
-  const buf = [];
-  const flush = setInterval(() => {
-    if (!buf.length) return;
-    const body = buf.splice(0).join('\n');
-    fetch(logsUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-ndjson', Authorization: `Bearer ${fleetSecret}` },
-      body,
-    }).catch(e => console.error('VictoriaLogs push failed:', e.message));
-  }, 5000);
   let partial = '';
   proc.stdout.on('data', chunk => {
     const lines = (partial + chunk).split('\n');
@@ -314,26 +319,18 @@ function startLogForwarding(logsUrl, units) {
       if (!line.trim()) continue;
       try {
         const e = JSON.parse(line);
-        buf.push(JSON.stringify({
-          _time: e.__REALTIME_TIMESTAMP
-            ? new Date(Number(e.__REALTIME_TIMESTAMP) / 1000).toISOString()
-            : new Date().toISOString(),
-          _msg: String(e.MESSAGE || ''),
-          hostname,
-          unit: e._SYSTEMD_UNIT || e.SYSLOG_IDENTIFIER || '',
-          priority: e.PRIORITY,
-        }));
+        queueLog('system', e._SYSTEMD_UNIT || e.SYSLOG_IDENTIFIER, Number(e.PRIORITY) || 6, e.MESSAGE,
+          e.__REALTIME_TIMESTAMP ? Number(e.__REALTIME_TIMESTAMP) / 1000 : Date.now());
       } catch {}
     }
   });
   proc.on('error', () => {});
   proc.on('close', () => {
-    clearInterval(flush);
-    console.log('journalctl exited, restarting log forwarding in 10s');
-    setTimeout(() => startLogForwarding(logsUrl, units), 10000);
+    console.log('journalctl exited, restarting in 10s');
+    setTimeout(() => startJournal(units), 10000);
   });
 }
 
 connect();
-if (shares.logs) startLogForwarding(vlIngestUrl, logUnits);
-
+if (shares.logs.includes('iac')) { pollIacLog(); setInterval(pollIacLog, 5000); }
+if (shares.logs.includes('system')) startJournal(logUnits);

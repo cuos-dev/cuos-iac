@@ -21,3 +21,5 @@
 .log-time  { color: #6b7280; flex-shrink: 0; }
 .log-unit  { color: #60a5fa; flex-shrink: 0; }
 .log-msg   { color: #d4d4d4; word-break: break-word; }
+.log-err  .log-msg { color: #f08c8a; }
+.log-warn .log-msg { color: #e8b563; }

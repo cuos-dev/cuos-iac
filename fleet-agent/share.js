@@ -5,7 +5,9 @@
 //     "resources":     true,        // cpu, ram, disk, uptime
 //     "iac_state":     true,        // state, commit, error of the IaC manager
 //     "network":       "summary",   // "none" | "summary" (default route address only) | "full" (all interfaces, routes, dns, ntp)
-//     "logs":          "off",       // "off" overrides fleet_log_units; otherwise only the units named there are forwarded
+//     "logs":          [],          // sources to forward: "iac" (the IaC manager's lines of the CuOS log) and/or
+//                                   // "system" (the journal units named in fleet_log_units). Default: nothing.
+//     "logs_redact":   { "builtin": true, "ips": false, "patterns": [] }   // see redact.js
 //     "remote_update": true         // may the server ask this device to check its repository now
 //   }
 //
@@ -14,6 +16,8 @@
 
 const NETWORK_LEVELS = ['none', 'summary', 'full'];
 
+const LOG_SOURCES = ['iac', 'system'];
+
 export function resolveShares(cfg = {}) {
   const s = cfg.fleet_share && typeof cfg.fleet_share === 'object' ? cfg.fleet_share : {};
   const units = Array.isArray(cfg.fleet_log_units) ? cfg.fleet_log_units : [];
@@ -21,8 +25,8 @@ export function resolveShares(cfg = {}) {
     resources: s.resources !== false,
     iac_state: s.iac_state !== false,
     network: NETWORK_LEVELS.includes(s.network) ? s.network : 'summary',
-    // log forwarding was already opt-in through fleet_log_units; "off" is the owner's veto
-    logs: s.logs !== 'off' && s.logs !== false && units.length > 0,
+    // only sources the owner names; anything else (true, typos, "all") shares nothing. "system" needs units to read.
+    logs: LOG_SOURCES.filter(src => (Array.isArray(s.logs) ? s.logs : [s.logs]).includes(src) && (src !== 'system' || units.length > 0)),
     remote_update: s.remote_update !== false,
   };
 }
