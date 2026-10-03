@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import { useAction } from '../hooks/useAction.js';
 import { isOutdated } from '../lib/version.js';
 import { fmt } from '../lib/fmt.js';
+import { iacHealth, hasProblem } from '../lib/status.js';
 import { DetailPanel } from './DetailPanel.jsx';
 
 const STATUS_BADGE = {
@@ -11,11 +12,7 @@ const STATUS_BADGE = {
   error:    { cls: 'badge-red',   icon: 'ti-alert-circle',  label: 'error' },
 };
 
-const IAC_BADGE = {
-  running:  'badge-green',
-  updating: 'badge-amber',
-  error:    'badge-red',
-};
+const IAC_BADGE = { ok: 'badge-green', busy: 'badge-amber', error: 'badge-red' };
 
 function MiniBar({ val, label }) {
   const pct   = val != null ? Math.round(val) : null;
@@ -41,12 +38,16 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta }) {
   const as = d.metrics?.app_state  || {};
 
   const sb     = STATUS_BADGE[d.status] || { cls: 'badge-gray', icon: 'ti-circle', label: d.status || '—' };
-  const iacCls = IAC_BADGE[as.iac_state] || 'badge-gray';
-  const dotCls = d.status === 'online' ? 'dot-online' : d.status === 'warn' ? 'dot-warn' : 'dot-offline';
+  const iacCls = IAC_BADGE[iacHealth(as.iac_state)] || 'badge-gray';
+  const dotCls = hasProblem(d) ? 'dot-error'
+    : d.status === 'updating' ? 'dot-warn'
+    : d.status === 'online' ? 'dot-online' : 'dot-offline';
+  const busy = pending || d.status === 'updating';
 
-  const btnIcon  = pending ? 'ti-loader-2 spin' : done ? 'ti-check' : 'ti-refresh';
-  const btnLabel = pending ? 'Updating…' : done ? 'Done' : error ? 'Error' : 'Update';
-  const btnCls   = `tbl-btn ${done ? 'done' : error ? 'error' : 'primary'} ${(offline || pending) ? 'disabled' : ''}`;
+  // "done" only means the trigger was accepted; the update itself is shown by the device status
+  const btnIcon  = busy ? 'ti-loader-2 spin' : done ? 'ti-check' : 'ti-refresh';
+  const btnLabel = busy ? 'Updating…' : done ? 'Triggered' : error ? 'Error' : 'Update';
+  const btnCls   = `tbl-btn ${done ? 'done' : error ? 'error' : 'primary'} ${(offline || busy) ? 'disabled' : ''}`;
 
   return (
     <>
@@ -56,7 +57,7 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta }) {
             <div class={`device-dot ${dotCls}`} />
             <div>
               <div class="device-name">{d.hostname || '—'}</div>
-              <div class="device-id">{d.id}</div>
+              <div class="device-id" title={d.id}>{d.id}</div>
             </div>
           </div>
         </td>
@@ -74,7 +75,7 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta }) {
         <td class="col-ip"><span class="mono">{r.default_route_ip || '—'}</span></td>
         <td class="col-iac">
           {as.iac_state
-            ? <span class={`badge ${iacCls}`}>{as.iac_state}</span>
+            ? <span class={`badge ${iacCls}`} title={as.iac_error || as.iac_state}>{as.iac_state}</span>
             : <span class="muted">—</span>}
         </td>
         <td class="col-cpu">
@@ -88,7 +89,7 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta }) {
         <td><span class={`last-seen ${fmt.lastSeenClass(d.last_seen)}`}>{fmt.relative(d.last_seen)}</span></td>
         <td onClick={e => e.stopPropagation()}>
           <div class="action-cell">
-            <button class={btnCls} onClick={() => run(`/api/clients/${d.id}/update`)} disabled={offline || pending}>
+            <button class={btnCls} onClick={() => run(`/api/clients/${d.id}/update`)} disabled={offline || busy} title={error || undefined}>
               <i class={`ti ${btnIcon}`} /> {btnLabel}
             </button>
             <button class="tbl-btn" onClick={() => setOpen(x => !x)}>

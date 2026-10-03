@@ -33,4 +33,6 @@
   .topbar-stats { gap: 12px; }
   .topbar-stat-val { font-size: 14px; }
   .topbar-clock { display: none; }
+  .topbar-sub, .topbar-minor { display: none; }
+  .topbar-brand { white-space: nowrap; }
 }

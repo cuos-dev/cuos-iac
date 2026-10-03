@@ -1,9 +1,10 @@
 import { useState } from 'preact/hooks';
 import { isOutdated } from '../lib/version.js';
+import { hasProblem } from '../lib/status.js';
 import { DeviceRow } from './DeviceRow.jsx';
 
 const PAGE_SIZE = 15;
-const FILTERS   = ['all', 'online', 'offline', 'outdated'];
+const FILTERS   = ['all', 'online', 'offline', 'problems', 'outdated'];
 
 export function DeviceTable({ devices, latestCuos, latestAgent, meta, filter, search, onFilter, onSearch }) {
   const [page, setPage] = useState(0);
@@ -11,6 +12,7 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, filter, se
   const filtered = devices.filter(d => {
     if (filter === 'online'   && d.status !== 'online') return false;
     if (filter === 'offline'  && d.status !== 'offline') return false;
+    if (filter === 'problems' && !hasProblem(d)) return false;
     if (filter === 'outdated' && !isOutdated(d.cuos_version, latestCuos) && !isOutdated(d.agent_version, latestAgent)) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -57,7 +59,7 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, filter, se
               <th style="width:95px">CuOS ver.</th>
               <th style="width:95px" class="col-agent">Agent ver.</th>
               <th style="width:115px" class="col-ip">IP address</th>
-              <th style="width:95px" class="col-iac">IaC state</th>
+              <th style="width:150px" class="col-iac">IaC state</th>
               <th style="width:135px" class="col-cpu">CPU / RAM / Disk</th>
               <th style="width:80px" class="col-uptime">Uptime</th>
               <th style="width:90px">Last seen</th>

@@ -54,8 +54,9 @@
 .dot-online   { background: var(--teal-400); }
 .dot-offline  { background: var(--gray-400); }
 .dot-warn     { background: var(--amber-400); }
+.dot-error    { background: var(--red-400); }
 .device-name  { font-weight: 500; font-size: 13px; color: var(--text-primary); }
-.device-id    { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.device-id    { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .mini-bars { display: flex; flex-direction: column; gap: 3px; }
 .mini-bar-cell { display: flex; align-items: center; gap: 5px; }
@@ -89,3 +90,5 @@
 
 @media (max-width: 768px) { .search-box input { width: 130px; } }
 @media (max-width: 480px) { .search-box input { width: 90px; } }
+
+.col-iac .badge { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }

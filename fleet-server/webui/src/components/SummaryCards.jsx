@@ -10,12 +10,13 @@ function Card({ icon, cls, val, label }) {
   );
 }
 
-export function SummaryCards({ total, online, offline, outdated, updating }) {
+export function SummaryCards({ total, online, offline, outdated, updating, problems }) {
   return (
     <div class="summary-row">
       <Card icon="ti-topology-star-3"   cls="si-teal"  val={total}    label="Total devices" />
       <Card icon="ti-circle-check"      cls="si-green" val={online}   label="Online" />
       <Card icon="ti-circle-x"          cls="si-red"   val={offline}  label="Offline" />
+      <Card icon="ti-alert-triangle"    cls="si-red"   val={problems} label="Problems" />
       <Card icon="ti-clock-exclamation" cls="si-amber" val={outdated} label="Outdated" />
       <Card icon="ti-refresh"           cls="si-blue"  val={updating} label="Updating" />
     </div>
