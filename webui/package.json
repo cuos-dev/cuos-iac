@@ -10,7 +10,7 @@
   "dependencies": {
     "basic-auth": "^3.0.0",
     "bcrypt": "^6.0.0",
-    "express": "^5.1.0",
+    "express": "^5.2.1",
     "preact": "^10",
     "ws": "^8"
   },
