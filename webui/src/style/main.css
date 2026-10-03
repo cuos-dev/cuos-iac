@@ -18,10 +18,37 @@
   --text-muted: #8892A0;
   --accent: #185FA5;
   --accent-light: #E6F1FB;
+  --accent-hover: var(--blue-800);
+  color-scheme: light;
   --font-sans: 'Instrument Sans', sans-serif;
   --font-mono: 'DM Mono', monospace;
   --radius: 8px;
   --radius-lg: 12px;
+}
+
+/* Dark theme: the colour scales keep their roles (50 = tinted background, 100 = border,
+   400 = fill, 600/800 = text), so only the values flip. Selected via <html data-theme="dark">
+   (see lib/theme.js and the inline script in index.html). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --blue-50: #12263F; --blue-100: #1E3F66; --blue-200: #2D5C93;
+  --blue-400: #5AA0E8; --blue-600: #8DBDF2; --blue-800: #B9D6F6; --blue-900: #DCEBFB;
+  --slate-50: #1D2433; --slate-100: #262F42; --slate-200: #333D52;
+  --slate-400: #7C879A; --slate-600: #A7B0C0; --slate-800: #D5DAE4; --slate-900: #E6E9F0;
+  --green-50: #172B14; --green-100: #2A4A22; --green-400: #6FB02E; --green-600: #9BD16A;
+  --amber-50: #33260F; --amber-100: #5C431A; --amber-400: #E0A030; --amber-600: #F0BE6A;
+  --red-50: #3A1717; --red-100: #6B2A2A; --red-400: #EF6B69; --red-600: #F59A98;
+  --bg: #0E121B;
+  --surface: #161C28;
+  --surface-2: #1B2230;
+  --border: #263044;
+  --border-strong: #364360;
+  --text-primary: #E6E9F0;
+  --text-secondary: #A7B0C0;
+  --text-muted: #8591A5;
+  --accent: #2F7FD0;
+  --accent-light: #14304F;
+  --accent-hover: #4A93E0;
 }
 
 body {
@@ -66,7 +93,7 @@ body {
 .badge {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 11px; font-weight: 600;
-  padding: 3px 8px; border-radius: 100px; word-spacing: 0.12em;
+  padding: 3px 8px; border-radius: 100px; word-spacing: 0.12em; white-space: nowrap;
 }
 .badge-green { background: var(--green-50); color: var(--green-600); }
 .badge-amber { background: var(--amber-50); color: var(--amber-600); }
@@ -147,7 +174,7 @@ body {
   cursor: pointer;
   transition: background 0.15s, transform 0.1s;
 }
-.btn-update:hover:not(:disabled) { background: var(--blue-800); }
+.btn-update:hover:not(:disabled) { background: var(--accent-hover); }
 .btn-update:active:not(:disabled) { transform: scale(0.98); }
 .btn-update:disabled { opacity: 0.6; cursor: default; }
 .btn-update i { font-size: 17px; }
@@ -199,7 +226,14 @@ body {
   .divider-v { display: none; }
 }
 @media (max-width: 600px) {
-  .topbar-meta { display: none; }
+  .topbar { gap: 10px; padding: 0 16px; }
+  .topbar-meta { gap: 10px; min-width: 0; }
+  .topbar-meta > span:nth-child(2) { display: none; }   /* clock */
+  .topbar-host { display: none; }
+  .topbar-brand { white-space: nowrap; }
+  .topbar-meta > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-header { flex-wrap: wrap; gap: 8px; }
+  .card-header > div[style] { flex-wrap: wrap; }
   .col-size { display: none; }
   .logs-search input { width: 100%; }
 }

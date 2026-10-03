@@ -63,7 +63,7 @@ export default function ContainersPanel({ ps = [], sendAction }) {
     <div class="card containers-panel">
       <div class="card-header">
         <div class="card-title"><i class="ti ti-container" /> Containers</div>
-        <div style="display:flex;gap:8px;align-items:center;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <span class="badge badge-green"><i class="ti ti-circle-filled" />{`${sum.ok} running`}</span>
           {sum.warn > 0 && <span class="badge badge-amber"><i class="ti ti-circle-filled" />{`${sum.warn} transitioning`}</span>}
           {sum.bad  > 0 && <span class="badge badge-red"><i class="ti ti-circle-filled" />{`${sum.bad} failed`}</span>}

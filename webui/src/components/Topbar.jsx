@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'preact/hooks';
 import { iacHealth } from '../lib/status.js';
+import { useTheme } from '../lib/theme.js';
 import '../style/topbar.css';
 
 export default function Topbar({ hostname, iacState, connected }) {
   const [time, setTime] = useState('');
+  const { pref, cycle } = useTheme();
+  const themeIcon  = { system: 'ti-device-desktop', light: 'ti-sun', dark: 'ti-moon' }[pref];
+  const themeLabel = { system: 'System', light: 'Light', dark: 'Dark' }[pref];
 
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleString('de-DE'));
@@ -26,6 +30,9 @@ export default function Topbar({ hostname, iacState, connected }) {
       <div class="topbar-meta">
         <span><span class={`status-dot ${dotCls}`} />{label}</span>
         <span>{time}</span>
+        <button class="theme-toggle" onClick={cycle} title={`Theme: ${themeLabel} (click to change)`} aria-label={`Theme: ${themeLabel}. Click to change`}>
+          <i class={`ti ${themeIcon}`} />
+        </button>
       </div>
     </div>
   );

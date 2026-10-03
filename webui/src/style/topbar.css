@@ -31,3 +31,12 @@
 .status-dot.grey { background: var(--slate-400); }
 .status-dot.warn { background: var(--amber-400); }
 .status-dot.err  { background: var(--red-400); }
+
+.theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 30px; height: 30px; border-radius: 6px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text-secondary); cursor: pointer; font-size: 16px;
+}
+.theme-toggle:hover { background: var(--slate-100); color: var(--text-primary); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
