@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "dev:mock": "node dev/run.js"
   },
   "dependencies": {
     "basic-auth": "^3.0.0",

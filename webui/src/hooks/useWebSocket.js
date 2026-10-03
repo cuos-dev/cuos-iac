@@ -10,7 +10,7 @@ export function useWebSocket() {
   useEffect(() => {
     function connect() {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      ws.current = new WebSocket(`${proto}://${location.host}/`);
+      ws.current = new WebSocket(`${proto}://${location.host}/ws`);
       ws.current.onopen  = () => setConnected(true);
       ws.current.onclose = () => { setConnected(false); setTimeout(connect, 3000); };
       ws.current.onmessage = e => {

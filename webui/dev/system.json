@@ -1,0 +1,8 @@
+{
+  "iac_user": "admin",
+  "iac_password": "admin",
+  "iac_repo_url": "https://git.example.com/acme/home-iac.git",
+  "iac_repo_branch": "main",
+  "iac_poll_interval": 300,
+  "iac_manual_updates": false
+}

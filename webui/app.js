@@ -9,12 +9,14 @@ import fs from 'fs/promises';
 import bcrypt from 'bcrypt';
 import { WebSocketServer } from 'ws';
 
-const IAC_SOCKET_PATH = '/socket/cuos-iac.sock';
+// overridable so the UI can run against a mock (see dev/)
+const IAC_SOCKET_PATH = process.env.IAC_SOCKET_PATH || '/socket/cuos-iac.sock';
+const SYSTEM_JSON     = process.env.SYSTEM_JSON     || '/system.json';
 let USER = 'admin', PASS = 'admin';
 
 let config = {};
 try {
-  config = JSON.parse(await fs.readFile('/system.json', 'utf8'));
+  config = JSON.parse(await fs.readFile(SYSTEM_JSON, 'utf8'));
   if (config.iac_user && config.iac_password) { USER = config.iac_user; PASS = config.iac_password; }
   else console.warn('system.json missing iac_user/iac_password, using defaults');
 } catch (e) {
@@ -154,7 +156,7 @@ app.use((_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')))
 
 // --- server + WebSocket ---
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const server = app.listen(PORT, () => console.log(`webui listening on :${PORT}`));
 const wss = new WebSocketServer({ noServer: true });
 
