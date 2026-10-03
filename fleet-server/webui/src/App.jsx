@@ -22,7 +22,7 @@ export function App() {
 
   return (
     <>
-      <Topbar online={online} offline={offline} outdated={outdated} problems={problems} ok={ok} />
+      <Topbar online={online} offline={offline} outdated={outdated} problems={problems} ok={ok} name={meta?.name} />
       <div class="main">
         <SummaryCards total={devices.length} online={online} offline={offline} outdated={outdated} updating={updating} problems={problems} />
         <DeviceTable

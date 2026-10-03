@@ -25,6 +25,8 @@ export function DetailPanel({ device: d, meta }) {
               <dt>Repo</dt>     <dd class="mono-sm">{d.repo_url || '—'}</dd>
               <dt>Branch</dt>   <dd>{d.repo_branch || '—'}</dd>
               <dt>Version</dt>  <dd>{s.version || d.cuos_version || '—'}</dd>
+              <dt>Agent</dt>    <dd>{d.agent_version || '—'}</dd>
+              <dt>Last seen</dt><dd>{fmt.date(d.last_seen)}</dd>
               <dt>Protocol</dt> <dd>{d.protocol_version ?? '—'}</dd>
             </dl>
             <a class="device-link" href={`http://${d.hostname}:8030/`} target="_blank" rel="noreferrer">

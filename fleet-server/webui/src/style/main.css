@@ -20,10 +20,41 @@
   --accent: #0F6E56;
   --accent-mid: #1D9E75;
   --accent-light: #E1F5EE;
+  --topbar-bg: var(--accent);      /* stays coloured in both themes */
+  --log-bg: #0D1A17;              /* the log box is dark in both themes */
+  --solid-green: #3B6D11;         /* fills that carry white text */
+  color-scheme: light;
   --font-sans: 'Sora', sans-serif;
   --font-mono: 'DM Mono', monospace;
   --radius: 8px;
   --radius-lg: 12px;
+}
+
+/* Dark theme: the scales keep their roles (50 = tinted background, 100 = border, 400 = fill,
+   600/800 = text), only the values flip. Selected via <html data-theme="dark"> (lib/theme.js and
+   the inline script in index.html). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --teal-50: #0F2B25; --teal-100: #17443A; --teal-200: #1F6B58;
+  --teal-400: #34B88E; --teal-600: #6FD6B2; --teal-800: #A9E8D2; --teal-900: #D2F4E8;
+  --gray-50: #19211F; --gray-100: #222C2A; --gray-200: #323F3C;
+  --gray-400: #7F9892; --gray-600: #A9BDB8; --gray-800: #D3DEDB; --gray-900: #E6F0ED;
+  --green-50: #172B14; --green-100: #2A4A22; --green-400: #6FB02E; --green-600: #9BD16A;
+  --amber-50: #33260F; --amber-100: #5C431A; --amber-400: #E0A030; --amber-600: #F0BE6A;
+  --red-50: #3A1717; --red-100: #6B2A2A; --red-400: #EF6B69; --red-600: #F59A98;
+  --blue-50: #12263F; --blue-100: #1E3F66; --blue-400: #5AA0E8; --blue-600: #8DBDF2;
+  --bg: #0B1412;
+  --surface: #121D1B;
+  --surface-2: #17231F;
+  --border: #22332F;
+  --border-strong: #31463F;
+  --text-primary: #E3EEEB;
+  --text-secondary: #A9BDB8;
+  --text-muted: #84A099;
+  --accent: #1E8F73;
+  --accent-mid: #34B88E;
+  --accent-light: #123A31;
+  --topbar-bg: #0E3B31;
 }
 
 body {
@@ -72,7 +103,7 @@ body {
 .tbl-btn i { font-size: 13px; }
 .tbl-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 .tbl-btn.primary:hover { background: var(--teal-800); border-color: var(--teal-800); }
-.tbl-btn.done    { background: var(--green-600); color: #fff; border-color: var(--green-600); }
+.tbl-btn.done    { background: var(--solid-green); color: #fff; border-color: var(--solid-green); }
 .tbl-btn.error   { background: var(--red-400);   color: #fff; border-color: var(--red-400); }
 .tbl-btn.disabled, .tbl-btn[disabled] { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
 

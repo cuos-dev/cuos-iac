@@ -1,5 +1,5 @@
 .topbar {
-  background: var(--accent);
+  background: var(--topbar-bg);
   padding: 0 28px; height: 54px;
   display: flex; align-items: center; justify-content: space-between;
   position: sticky; top: 0; z-index: 100;
@@ -29,10 +29,20 @@
 .topbar-divider    { width: 1px; height: 28px; background: rgba(255,255,255,0.2); }
 
 @media (max-width: 600px) {
-  .topbar { padding: 0 14px; }
-  .topbar-stats { gap: 12px; }
+  .topbar { padding: 0 12px; gap: 8px; }
+  .topbar-brand { gap: 8px; min-width: 0; }
+  .topbar-stats { gap: 8px; margin-left: auto; }
+  .topbar-divider { display: none; }
   .topbar-stat-val { font-size: 14px; }
   .topbar-clock { display: none; }
   .topbar-sub, .topbar-minor { display: none; }
   .topbar-brand { white-space: nowrap; }
 }
+
+.theme-toggle {
+  flex-shrink: 0; width: 30px; height: 30px; border-radius: 7px; cursor: pointer;
+  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.theme-toggle:hover { background: rgba(255,255,255,0.25); }
+.theme-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

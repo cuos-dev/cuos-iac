@@ -5,9 +5,16 @@ import { DeviceRow } from './DeviceRow.jsx';
 
 const PAGE_SIZE = 15;
 const FILTERS   = ['all', 'online', 'offline', 'problems', 'outdated'];
+// 'name' keeps rows where they are; 'attention' floats problems, then offline, then updating to the top
+const rank = d => hasProblem(d) ? 0 : d.status === 'offline' ? 1 : d.status === 'updating' ? 2 : 3;
+const SORTS = {
+  name:      (a, b) => (a.hostname || a.id).localeCompare(b.hostname || b.id, undefined, { numeric: true }),
+  attention: (a, b) => rank(a) - rank(b) || SORTS.name(a, b),
+};
 
 export function DeviceTable({ devices, latestCuos, latestAgent, meta, filter, search, onFilter, onSearch }) {
   const [page, setPage] = useState(0);
+  const [sort, setSort] = useState('name');
 
   const filtered = devices.filter(d => {
     if (filter === 'online'   && d.status !== 'online') return false;
@@ -23,6 +30,7 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, filter, se
     return true;
   });
 
+  filtered.sort(SORTS[sort]);
   const pages    = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const p        = Math.min(page, pages - 1);
   const pageRows = filtered.slice(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE);
@@ -43,6 +51,10 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, filter, se
             </button>
           ))}
         </div>
+        <select class="sort-select" value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort devices">
+          <option value="name">Sort: name</option>
+          <option value="attention">Sort: attention first</option>
+        </select>
         <div class="search-box">
           <i class="ti ti-search" />
           <input type="text" placeholder="Search hostname, IP, ID…" value={search}

@@ -285,7 +285,7 @@ app.get('/api/clients/:id/direct', requireAuth, (req, res) => {
   res.json({ url });
 });
 
-app.get('/api/meta', requireAuth, (req, res) => res.json({ wsNonce: UI_WS_NONCE, hasVm: !!FLEET_VM_URL, hasVl: !!FLEET_VL_URL }));
+app.get('/api/meta', requireAuth, (req, res) => res.json({ wsNonce: UI_WS_NONCE, hasVm: !!FLEET_VM_URL, hasVl: !!FLEET_VL_URL, name: process.env.FLEET_NAME || null }));
 app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
 app.get('/ui/*path', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'webui/dist/index.html')));
 

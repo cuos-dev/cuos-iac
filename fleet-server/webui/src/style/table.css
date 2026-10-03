@@ -92,3 +92,31 @@
 @media (max-width: 480px) { .search-box input { width: 90px; } }
 
 .col-iac .badge { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+
+.sort-select {
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px;
+  background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 12px;
+}
+
+/* Narrow screens: one card per device instead of a table that scrolls sideways.
+   Name + status on top; version, IaC state and the update button below. The rest
+   (agent, IP, load, uptime, last seen) is in the details. */
+@media (max-width: 640px) {
+  .filter-tabs { flex-wrap: wrap; }
+  .fleet-table thead { display: none; }
+  .fleet-table, .fleet-table tbody { display: block; }
+  .fleet-table tbody tr.device-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "dev dev status" "ver iac act";
+    gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border);
+  }
+  .fleet-table tr.device-row > td { display: none; padding: 0; border: none; background: transparent; }
+  .fleet-table tr.device-row > td:nth-child(1)  { display: block; grid-area: dev; min-width: 0; }
+  .fleet-table tr.device-row > td:nth-child(2)  { display: block; grid-area: status; justify-self: end; }
+  .fleet-table tr.device-row > td:nth-child(3)  { display: block; grid-area: ver; }
+  .fleet-table tr.device-row > td:nth-child(6)  { display: block; grid-area: iac; justify-self: end; min-width: 0; }
+  .fleet-table tr.device-row > td:nth-child(10) { display: block; grid-area: act; justify-self: end; }
+  .fleet-table tbody tr:not(.device-row), .fleet-table td.detail-cell { display: block; }
+  .device-id { max-width: none; }
+  .table-toolbar .search-box { margin-left: 0; }
+}

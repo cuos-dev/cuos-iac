@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
+import { useTheme } from '../lib/theme.js';
 
 function Stat({ val, label, minor }) {
   return (
@@ -9,7 +10,10 @@ function Stat({ val, label, minor }) {
   );
 }
 
-export function Topbar({ online, offline, outdated, problems, ok }) {
+export function Topbar({ online, offline, outdated, problems, ok, name }) {
+  const { pref, cycle } = useTheme();
+  const themeIcon  = { system: 'ti-device-desktop', light: 'ti-sun', dark: 'ti-moon' }[pref];
+  const themeLabel = { system: 'System', light: 'Light', dark: 'Dark' }[pref];
   const [now, setNow] = useState(() => new Date().toLocaleString());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date().toLocaleString()), 1000);
@@ -21,7 +25,7 @@ export function Topbar({ online, offline, outdated, problems, ok }) {
       <div class="topbar-brand">
         <div class="brand-icon"><i class="ti ti-topology-star-3" /></div>
         Fleet Server
-        <span class="topbar-sub">/ production</span>
+        {name && <span class="topbar-sub">/ {name}</span>}
         <span class={`ws-dot ${ok ? 'ws-dot-ok' : 'ws-dot-off'}`} title={ok ? 'live' : 'reconnecting…'} />
       </div>
       <div class="topbar-stats">
@@ -37,6 +41,9 @@ export function Topbar({ online, offline, outdated, problems, ok }) {
           <div class="topbar-stat-val">{now}</div>
           <div class="topbar-stat-label">local time</div>
         </div>
+        <button class="theme-toggle" onClick={cycle} title={`Theme: ${themeLabel} (click to change)`} aria-label={`Theme: ${themeLabel}. Click to change`}>
+          <i class={`ti ${themeIcon}`} />
+        </button>
       </div>
     </div>
   );

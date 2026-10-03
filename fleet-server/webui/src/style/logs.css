@@ -13,7 +13,7 @@
 .log-box {
   font-family: var(--font-mono); font-size: 11px;
   max-height: 220px; overflow-y: auto;
-  background: var(--gray-900); color: #d4d4d4;
+  background: var(--log-bg); color: #d4d4d4;
   padding: 10px 12px; border-radius: var(--radius);
 }
 .log-empty { color: #555; }

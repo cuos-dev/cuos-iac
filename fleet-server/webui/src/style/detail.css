@@ -38,5 +38,6 @@
   font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;
 }
 .metrics-charts { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
-.chart-wrap { display: flex; flex-direction: column; gap: 4px; }
+.chart-wrap { display: flex; flex-direction: column; gap: 4px; flex: 1 1 260px; min-width: 0; }
+.chart-box { width: 100%; min-width: 0; }
 .chart-label { font-size: 11px; color: var(--text-muted); }
