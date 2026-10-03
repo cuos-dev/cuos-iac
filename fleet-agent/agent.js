@@ -99,9 +99,46 @@ function saveToken(t) {
   }
 }
 function dropToken() { token = null; try { fs.rmSync(TOKEN_FILE, { force: true }); } catch {} }
+// ---- Status for the device owner ----
+// Published through the IaC container (fleet:status:set) so the device's own WebUI can show what this agent
+// is doing: which server, connected or not, enrolled or waiting, and what it shares. It never contains the
+// secret or the token. An IaC container without these commands just ignores the call.
+const serverHost = (() => { try { return new URL(fleetServerUrl).host; } catch { return String(fleetServerUrl).replace(/^[a-z]+:\/\//i, '').replace(/^[^@/]*@/, '').split('/')[0]; } })();
+const status = {
+  server: serverHost, state: 'connecting', since: new Date().toISOString(), error: null,
+  device_id: uuid, enrollment: token ? 'enrolled' : 'bootstrap', shares, agent_version: agentVersion, last_remote_update: null,
+};
+let publishTimer;
+function publish() {
+  clearTimeout(publishTimer);
+  publishTimer = setTimeout(() => { status.updated = new Date().toISOString(); iacApi('fleet:status:set', { status }).catch(() => {}); }, 300);
+}
+function setState(state, error = null) {
+  if (status.state !== state) status.since = new Date().toISOString();
+  status.state = state; status.error = error;
+  publish();
+}
+setInterval(publish, 30_000);                // the WebUI treats a status that stops refreshing as "agent not running"
+
+// what the server's refusal reasons mean for a person
+const REFUSALS = {
+  bad_secret: 'The server does not accept the fleet secret.',
+  token_unknown: 'The server does not know this device token.',
+  too_many_attempts: 'Too many failed attempts; the server is pausing this address.',
+  rejected: 'An administrator rejected this device.',
+  'token revoked': 'The token of this device was revoked; it has to be approved again.',
+  forgotten: 'An administrator removed this device from the server.',
+  're-enrolled': 'This device was enrolled again from another connection.',
+  'uuid does not match token': 'The device id does not match its token.',
+  'protocol too old': 'The server needs a newer agent.',
+  'invalid uuid': 'The server refused the device id.',
+};
+const refusalText = reason => REFUSALS[reason] || `The server refused the connection (${reason}).`;
+
 let tokenRefusals = 0;   // the server not knowing our token several times in a row: it was revoked or the server lost its data
 
 function connect() {
+  setState('connecting');
   const wsUrl = fleetServerUrl.replace(/\/$/, '') + '/ws';
   console.log('Connecting to', wsUrl, token ? '(with device token)' : '(with the bootstrap secret)');
   ws = new WebSocket(wsUrl, { headers: { Authorization: `Bearer ${token || fleetSecret}` } });
@@ -113,6 +150,7 @@ function connect() {
     const reason = res.headers['x-fleet-reason'] || String(res.statusCode);
     res.resume(); req.destroy();
     console.error(`Server refused the connection: ${reason}`);
+    setState('refused', refusalText(reason));
     if (token && reason === 'token_unknown' && ++tokenRefusals >= 3) {
       console.error('The server does not know this device token any more; enrolling again with the bootstrap secret.');
       dropToken(); tokenRefusals = 0;
@@ -138,14 +176,20 @@ function connect() {
   });
   ws.on('message', (data) => {
     let msg; try { msg = JSON.parse(data); } catch { return; }
-    if (msg.type === 'server_welcome') { admitted = true; startHeartbeat(); }   // admitted: from here on we report
+    if (msg.type === 'server_welcome') { admitted = true; status.enrollment = token ? 'enrolled' : 'bootstrap'; setState('connected'); startHeartbeat(); }   // admitted: from here on we report
     else if (msg.type === 'enrolled' || msg.type === 'token_rotate') {
-      if (typeof msg.token === 'string' && msg.token.startsWith('ft_')) { saveToken(msg.token); console.log(msg.type === 'enrolled' ? 'Enrolled, device token stored.' : 'Device token rotated.'); }
+      if (typeof msg.token === 'string' && msg.token.startsWith('ft_')) { saveToken(msg.token); console.log(msg.type === 'enrolled' ? 'Enrolled, device token stored.' : 'Device token rotated.'); status.enrollment = 'enrolled'; publish(); }
     }
-    else if (msg.type === 'pending') console.log(`Waiting for an administrator to approve this device (${msg.reason || ''}).`);
+    else if (msg.type === 'pending') { console.log(`Waiting for an administrator to approve this device (${msg.reason || ''}).`); status.enrollment = 'waiting'; setState('pending', msg.reason === 'approval required' ? 'Waiting for an administrator to approve this device.' : 'This device id is already known to the server without its token; waiting for an administrator.'); }
     else if (msg.type === 'update_trigger') handleUpdateTrigger(msg);
   });
-  ws.on('close', () => { admitted = false; retry(); });
+  ws.on('close', (code, reason) => {
+    admitted = false;
+    const why = String(reason || '');
+    if (code === 1008 && why) setState('refused', refusalText(why));                    // the server closed us on purpose
+    else if (status.state !== 'refused' && status.state !== 'pending') setState('disconnected', 'The connection was lost.');
+    retry();
+  });
   ws.on('error', (err) => {
     console.error('WS error', err.message);
   });
@@ -178,6 +222,8 @@ function scheduleReconnect() {
 
 async function handleUpdateTrigger(msg) {
   console.log(JSON.stringify({ msg: 'update trigger', requested_by: msg.requested_by || null, allowed: shares.remote_update }));
+  status.last_remote_update = { at: new Date().toISOString(), by: typeof msg.requested_by === 'string' ? msg.requested_by.slice(0, 64) : null, allowed: shares.remote_update };
+  publish();
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   if (!shares.remote_update) {
     ws.send(JSON.stringify({ type: 'update_denied', uuid, reason: 'remote update is not permitted on this device' }));

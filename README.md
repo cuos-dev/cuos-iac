@@ -266,6 +266,14 @@ The server is configured through environment variables:
 | `FLEET_LOG_MAX_ROWS` | `20000` | Log lines kept per device, newest first. |
 | `FLEET_DATA_DIR` | `/data` | Holds `fleet.db`, a SQLite database: devices, load history, logs. Back this up if you need the history. |
 
+### On the device
+
+The agent publishes its own state to the device (through the IaC container's `fleet:status:set`):
+which server, connected / waiting for approval / refused and why, whether it is enrolled, what it
+shares, and who last asked for an update. The device's WebUI shows this as its Fleet card, so whoever
+owns the device can see exactly what is shared without asking the server's administrator. It never
+contains the secret or the token.
+
 ### Metrics and logs
 
 Everything an agent reports travels over its one connection: state, load samples and log lines. The
