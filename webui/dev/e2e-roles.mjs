@@ -23,7 +23,7 @@ async function actions(user, cmds) {
   cmds.forEach(([c, extra], i) => ws.send(JSON.stringify({ type: 'action', id: c + i, command: c, ...extra })));
   await got; ws.close(); return out;
 }
-const cmds = [['ps'], ['docker:logs', { name: 'iac-traefik-1' }], ['docker:restart', { name: 'iac-traefik-1' }], ['update'], ['cuos:reboot'], ['compose:file'], ['config', { config: 'x' }], ['nope']];
+const cmds = [['ps'], ['docker:logs', { name: 'iac-traefik-1' }], ['docker:restart', { name: 'iac-traefik-1' }], ['update'], ['cuos:reboot'], ['compose:file'], ['config', { config: 'x' }], ['backup:run'], ['backup:snapshots'], ['nope']];
 console.log('viewer:', JSON.stringify(await actions('viewer', cmds)));
 console.log('admin: ', JSON.stringify(await actions('admin', cmds.filter(c => c[0] !== 'cuos:reboot'))));
 // unauthenticated WS upgrade

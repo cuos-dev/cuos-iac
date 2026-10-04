@@ -10,7 +10,7 @@ import Sidebar           from './components/Sidebar.jsx';
 
 export default function App() {
   const { state, logs, connected, sendAction } = useWebSocket();
-  const { cuosState, resources, ps, appState, progress, system, fleet } = state ?? {};
+  const { cuosState, resources, ps, appState, progress, system, fleet, backup } = state ?? {};
   const [config, setConfig] = useState({});
   const canAct = config.user?.role === 'admin';   // the backend enforces this too; this only hides what would be refused
 
@@ -40,6 +40,7 @@ export default function App() {
           appState={appState ?? {}}
           system={system ?? {}}
           fleet={fleet}
+          backup={backup}
           config={config}
           ps={ps ?? []}
           sendAction={sendAction}

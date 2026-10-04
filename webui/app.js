@@ -13,6 +13,7 @@ import { WebSocketServer } from 'ws';
 // overridable so the UI can run against a mock (see dev/)
 const IAC_SOCKET_PATH = process.env.IAC_SOCKET_PATH || '/socket/cuos-iac.sock';
 const SYSTEM_JSON     = process.env.SYSTEM_JSON     || '/system.json';
+const BACKUP_SOCKET_PATH = process.env.BACKUP_SOCKET_PATH || '/socket/cuos-backup.sock';   // the optional backup container
 let config = {};
 try {
   config = JSON.parse(await fs.readFile(SYSTEM_JSON, 'utf8'));
@@ -88,6 +89,19 @@ function iacApi(app_command, data = {}) {
   });
 }
 
+// the backup container listens on the shared socket volume: one JSON line in, one JSON document out
+function backupApi(command) {
+  return new Promise((resolve, reject) => {
+    const client = net.createConnection(BACKUP_SOCKET_PATH);
+    client.setTimeout(20000, () => client.destroy(new Error('the backup container did not answer')));
+    client.on('connect', () => client.write(JSON.stringify({ command }) + '\n'));
+    let response = '';
+    client.on('data', chunk => (response += chunk.toString()));
+    client.on('end', () => { try { resolve(JSON.parse(response)); } catch { resolve({ error: 'unreadable answer' }); } });
+    client.on('error', e => reject(new Error(e.code === 'ENOENT' || e.code === 'ECONNREFUSED' ? 'no backup container is running' : e.message)));
+  });
+}
+
 // --- system info ---
 
 const IAC_PREFIX = '[cuos-iac] ';
@@ -126,11 +140,13 @@ function broadcast(msg) {
 
 async function pollState() {
   try {
-    const [cuosState, resources, ps, appState, progress, fleetRaw] = await Promise.all([
-      iacApi('cuos:state'), iacApi('cuos:resources'), iacApi('ps'), iacApi('state'), iacApi('progress'), iacApi('fleet:status'),
+    const [cuosState, resources, ps, appState, progress, fleetRaw, backupRaw] = await Promise.all([
+      iacApi('cuos:state'), iacApi('cuos:resources'), iacApi('ps'), iacApi('state'), iacApi('progress'), iacApi('fleet:status'), iacApi('backup:status'),
     ]);
     // what the fleet agent reports about itself; an IaC container without the command answers with text, no agent with {}
     const fleet = fleetRaw && typeof fleetRaw === 'object' && Object.keys(fleetRaw).length ? fleetRaw : null;
+    // what the optional backup container reports; an IaC container without the command answers with text, no backup with {}
+    const backup = backupRaw && typeof backupRaw === 'object' && Object.keys(backupRaw).length ? backupRaw : null;
     if (resources && typeof resources === 'object') {
       resources.ram_percent  = Math.round((resources.mem_used_mb  / resources.mem_total_mb)  * 100);
       resources.disk_percent = Math.round((resources.disk_used_mb / resources.disk_total_mb) * 100);
@@ -140,7 +156,7 @@ async function pollState() {
       appState.iac_started = appState.last_iac_start ?? null;
       appState.commit      = appState.iac_commit ?? null;
     }
-    const msg = { type: 'state', cuosState, resources, ps, appState, progress, fleet, system: getSystem() };
+    const msg = { type: 'state', cuosState, resources, ps, appState, progress, fleet, backup, system: getSystem() };
     const str = JSON.stringify(msg);
     if (str === lastStateSerialized) return;
     lastStateSerialized = str;
@@ -189,6 +205,7 @@ const ALLOWED = new Set([
   'update', 'cuos:update', 'cuos:shutdown', 'cuos:reboot', 'cuos:rollback', 'config',
   'docker:restart', 'docker:recreate', 'docker:stop', 'docker:start', 'dry-run',
   'docker:logs', 'docker:remove', 'docker:version', 'compose:file', 'ps',
+  'backup:run', 'backup:snapshots',      // answered by the backup container, not by the IaC manager
 ]);
 
 // Everything in ALLOWED is for admins; viewers get the read-only subset.
@@ -232,7 +249,7 @@ wss.on('connection', ws => {
       return;
     }
     try {
-      const result = await iacApi(command, data);
+      const result = command.startsWith('backup:') ? await backupApi(command.slice(7)) : await iacApi(command, data);
       ws.send(JSON.stringify({ type: 'action_result', id, command, result }));
     } catch (e) {
       ws.send(JSON.stringify({ type: 'action_result', id, command, error: e.message }));

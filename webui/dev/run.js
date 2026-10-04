@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const socket = path.join(os.tmpdir(), 'cuos-webui-dev', 'cuos-iac.sock');
-const env = { ...process.env, IAC_SOCKET_PATH: socket, SYSTEM_JSON: path.join(root, 'dev', 'system.json'), PORT: '3000' };
+const env = { ...process.env, IAC_SOCKET_PATH: socket, SYSTEM_JSON: path.join(root, 'dev', 'system.json'), PORT: '3000', BACKUP_SOCKET_PATH: path.join(os.tmpdir(), 'cuos-webui-dev', 'cuos-backup.sock') };
 
 const run = (name, args) => {
   const p = spawn(process.execPath, args, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });

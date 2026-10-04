@@ -262,6 +262,19 @@ elif [[ "${COMMAND}" = "fleet:status:set" ]]; then
   fi
   tmp="$(mktemp /volume/fleet.XXXXXX)" && printf '%s\n' "${status}" > "${tmp}" && mv "${tmp}" /volume/fleet.json && echo '{"result":"ok"}'
 
+## backup:status       - What the backup container last reported about itself, as JSON ({} if it never did)
+elif [[ "${COMMAND}" = "backup:status" ]]; then
+  if [[ -s /volume/backup.json ]]; then cat /volume/backup.json; else echo '{}'; fi
+
+## backup:status:set   - Backup container: publish its status (a JSON object in .status; kept small)
+elif [[ "${COMMAND}" = "backup:status:set" ]]; then
+  status="$(jq -c 'if (.status | type) == "object" then .status else empty end' <<< "${INPUT}" 2>/dev/null)"
+  if [[ -z "${status}" || ${#status} -gt 8192 ]]; then
+    echo '{"error":"invalid status"}'
+    exit 1
+  fi
+  tmp="$(mktemp /volume/backup.XXXXXX)" && printf '%s\n' "${status}" > "${tmp}" && mv "${tmp}" /volume/backup.json && echo '{"result":"ok"}'
+
 ## dry-run             - Preview system.json changes without applying them
 elif [[ "${COMMAND}" = "dry-run" ]]; then
   if [[ ! -d "${REPO_DIR}/.git" ]]; then

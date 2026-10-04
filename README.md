@@ -201,6 +201,9 @@ the CuOS actions (shutdown, reboot, rollback, factory reset). With the fleet age
 shows a Fleet card: the server, whether the device is connected, enrolled or waiting for approval, and
 exactly what it shares (load, IaC state, addresses, logs, remote updates). The agent publishes that
 through the IaC container's `fleet:status` / `fleet:status:set`; without an agent the card is not shown.
+The same goes for the optional backup container (`backup:status` / `backup:status:set`): its card shows the last
+run, the database dumps, the snapshots and the next run, and an administrator can start a backup and list the
+snapshots (the UI asks the container's own socket, `/socket/cuos-backup.sock`, in the shared socket volume).
 
 ```yml
 include:

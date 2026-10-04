@@ -44,6 +44,32 @@ let fleet = {
 };
 const fleetFresh = () => ({ ...fleet, updated: fleet.demo === false ? fleet.updated : iso() });   // the demo keeps looking alive
 
+// backup container status (backup:status / backup:status:set) and its control socket (run, snapshots), like backup/agent.js
+const BACKUP_SOCKET = process.env.BACKUP_SOCKET_PATH || path.join(path.dirname(SOCKET), 'cuos-backup.sock');
+let backup = {
+  state: 'idle', repository: 'sftp:backup@nas.example.com:/restic/jarvis', schedule: '0 3 * * *', snapshots: 14, overdue: false,
+  last_run: { started: iso(new Date(Date.now() - 9 * 3600e3)), finished: iso(new Date(Date.now() - 9 * 3600e3 + 41e3)), result: 'ok', error: null, warning: null, seconds: 41.3,
+    dumps: [{ name: 'postgresql.sql', container: 'iac-postgresql-1', bytes: 18_400_000, seconds: 6.1 }, { name: 'mariadb.sql', container: 'iac-mariadb-1', bytes: 2_200_000, seconds: 1.4 }],
+    snapshot_id: '9d41c7ab', files_new: 12, data_added: 4_300_000, bytes: 612_000_000 },
+  last_check: { time: iso(new Date(Date.now() - 3 * 86400e3)), ok: true, error: null, seconds: 88.2 },
+  next_run: new Date(Date.now() + 15 * 3600e3).toISOString(),
+};
+const backupFresh = () => ({ ...backup, updated: iso() });
+let backupRuns = 0;
+function runBackup() {
+  backup.state = 'running';
+  setTimeout(() => {
+    backupRuns++;
+    const fail = backupRuns % 2 === 1;     // every other manual run fails, like the update mock
+    backup.last_run = fail
+      ? { started: iso(), finished: iso(), result: 'failed', error: 'dump postgresql.sql (iac-postgresql-1) failed: exit 1: pg_dump: connection to server failed', warning: null, dumps: [], seconds: 2.1 }
+      : { ...backup.last_run, started: iso(), finished: iso(), result: 'ok', error: null, snapshot_id: Math.random().toString(16).slice(2, 10), seconds: 40.2, bytes: 612_000_000, data_added: 4_100_000, files_new: 9 };
+    if (!fail) backup.snapshots++;
+    backup.state = 'idle';
+  }, 4000);
+}
+const backupSnapshots = () => ({ count: backup.snapshots, list: [...Array(Math.min(backup.snapshots, 8))].map((_, i) => ({ id: Math.random().toString(16).slice(2, 10), time: iso(new Date(Date.now() - (i * 24 + 9) * 3600e3)), host: 'jarvis', paths: ['/src', '/staging'], tags: [] })) });
+
 let progress = [];       // list of {step,status,ts}, same shape as iac/entrypoint.sh emit_progress
 const logs = [];         // {date,level,message}; iac lines carry the "[cuos-iac] " prefix like the real log
 
@@ -120,6 +146,11 @@ const handlers = {
   }),
   'docker:version': () => ({ version: '27.3.1', api: '1.47' }),
   'fleet:status': () => (fleet ? fleetFresh() : {}),
+  'backup:status': () => backupFresh(),
+  'backup:status:set': p => {
+    if (!p.status || typeof p.status !== 'object' || JSON.stringify(p.status).length > 8192) return { error: 'invalid status' };
+    backup = p.status; return { result: 'ok' };
+  },
   'fleet:status:set': p => {
     if (!p.status || typeof p.status !== 'object' || JSON.stringify(p.status).length > 4096) return { error: 'invalid status' };
     fleet = { ...p.status, demo: false }; return { result: 'ok' };
@@ -153,3 +184,21 @@ net.createServer(conn => {
 }).listen(SOCKET, () => console.log(`[mock-iac] listening on ${SOCKET}`));
 
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { fs.rmSync(SOCKET, { force: true }); process.exit(0); });
+
+// the backup container's own socket: one JSON line {command}, one JSON document back
+fs.rmSync(BACKUP_SOCKET, { force: true });
+net.createServer(conn => {
+  let buf = '';
+  conn.on('data', d => {
+    buf += d;
+    if (!buf.includes('\n')) return;
+    let req = {}; try { req = JSON.parse(buf.split('\n')[0]); } catch {}
+    const out = req.command === 'status' ? backupFresh()
+      : req.command === 'snapshots' ? backupSnapshots()
+      : req.command === 'run' ? (backup.state === 'running' ? { error: 'a run is already in progress' } : (runBackup(), { result: 'started' }))
+      : { error: 'unknown command' };
+    conn.end(JSON.stringify(out));
+  });
+  conn.on('error', () => {});
+}).listen(BACKUP_SOCKET, () => console.log(`[mock-iac] backup container on ${BACKUP_SOCKET}`));
+process.on('exit', () => fs.rmSync(BACKUP_SOCKET, { force: true }));

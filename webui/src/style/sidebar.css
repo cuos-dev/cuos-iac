@@ -135,3 +135,8 @@
   color: var(--text-primary); background: transparent; border: 1px solid var(--border);
 }
 .config-actions { display: flex; justify-content: flex-end; padding: 10px 16px 14px; }
+
+.backup-actions { display: flex; gap: 8px; margin-top: 12px; }
+.backup-snaps { margin-top: 10px; max-height: 180px; overflow: auto; font-size: 12px; }
+.backup-snap { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.backup-snap:last-child { border-bottom: none; }

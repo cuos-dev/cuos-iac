@@ -15,6 +15,7 @@
 
 - Containers: running, healthy, unhealthy, starting, an init container that exited with 0, one that failed. Restart/stop/start/remove change them.
 - **Every other update fails** (the first one at `compose_up`, with `iac_state: "docker compose failed"` and an error), the next one succeeds and clears it.
+- The optional backup container: `backup:status` starts with a demo status (an administrator can "Back up now" and list snapshots through a second socket, `cuos-backup.sock`; every other manual run fails). A real container (`backup/` in the backup branch) can publish into the same sockets with `IAC_SOCKET_PATH=/tmp/cuos-webui-dev/cuos-iac.sock BACKUP_SOCKET_PATH=/tmp/cuos-webui-dev/cuos-backup.sock`.
 - `fleet:status` starts with a demo status; a real fleet agent (or `dev/fleet-status.mjs`) replaces it.
 
 Changes to `app.js` or `dev/mock-iac.js` need a restart, the UI reloads itself.
@@ -38,7 +39,7 @@ Do not leave one running while you try states by hand: it republishes every 30 s
 `node dev/e2e-roles.mjs` (with `npm run dev:mock` running) checks the login and the roles. Expected:
 
 - no login 401; `admin/admin` and `viewer/viewer` 200; wrong password and unknown user 401; `config.user` carries the role;
-- the viewer gets `ok` for `ps` and `docker:logs` and `forbidden` for `docker:restart`, `update`, `cuos:reboot`, `compose:file`, `config`;
+- the viewer gets `ok` for `ps` and `docker:logs` and `forbidden` for `docker:restart`, `update`, `cuos:reboot`, `compose:file`, `config`, `backup:run`, `backup:snapshots`;
 - the admin gets `ok` for all of them; `nope` is `unknown command` for both; an unauthenticated WebSocket is refused with 401.
 
 `npm run build` must pass; the CI also runs the SPDX header check (`.github/scripts/spdx-headers.sh check`) and shellcheck on `*.sh`.
