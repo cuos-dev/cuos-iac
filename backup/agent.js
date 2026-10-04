@@ -52,6 +52,9 @@ function iacApi(app_command, data = {}) {
 async function publish() {
   status.updated = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   status.next_run = nextRun(scheduleCron)?.toISOString() ?? null;
+  // a run that should have happened (an hour of grace) and did not: the container was down, or the clock is wrong
+  const due = status.last_run?.finished ? nextRun(scheduleCron, new Date(status.last_run.finished)) : null;
+  status.overdue = !!due && status.state === 'idle' && Date.now() > due.getTime() + 3600_000;
   try { fs.writeFileSync(STATUS_FILE, JSON.stringify(status)); } catch (e) { log('warn', `cannot save status: ${e.message}`); }
   try { await iacApi('backup:status:set', { status }); }   // an IaC manager without the command (or no socket) is not a problem
   catch {}
@@ -126,7 +129,7 @@ setInterval(() => {
   if (matches(scheduleCron, now)) runBackup('schedule');
   else if (checkCron && matches(checkCron, now)) runCheck();
 }, 20000);
-setInterval(() => {}, 1 << 30);   // keep the process alive
+setInterval(publish, 5 * 60_000);   // a heartbeat: the UI calls a status that has gone quiet 'not reporting'
 
 function shutdown() { try { fs.rmSync(CONTROL_SOCKET, { force: true }); } catch {} process.exit(0); }
 process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
