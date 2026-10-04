@@ -18,7 +18,7 @@ function Ports({ ports }) {
         const m = p.match(/0\.0\.0\.0:(\d+)->/);
         if (m) {
           const port = m[1];
-          const proto = port === '443' ? 'https' : 'http';
+          const proto = port === '443' || port === '8443' || (port >= 4430 && port < 4440) ? 'https' : 'http';
           return <span key={i}><a href={`${proto}://${location.hostname}:${port}`} target="_blank" rel="noopener">{p}</a>{i < parts.length - 1 ? ', ' : ''}</span>;
         }
         return <span key={i}>{p}{i < parts.length - 1 ? ', ' : ''}</span>;

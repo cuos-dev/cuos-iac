@@ -17,6 +17,9 @@ export default function IaCCard({ appState = {}, config = {} }) {
               : '—'}
           </span>
         </div>
+        <Row k="Branch" v={config.iac_repo_branch} />
+        <Row k="Commit" v={appState.commit && appState.commit.slice(0, 8)} />
+        <Row k="Repo updated" v={appState.last_iac_update && fmt(appState.last_iac_update)} />
         <Row k="Manager started" v={fmt(appState.iac_started)} />
       </div>
     </div>

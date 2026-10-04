@@ -14,7 +14,7 @@ export default function Sidebar({ cuosState, resources = {}, appState = {}, syst
       {canAct && <ActionsCard sendAction={sendAction} ps={ps} />}
       {fleet && <FleetCard fleet={fleet} />}
       <NetworkCard   resources={resources} />
-      <SystemCard    system={system} cuosState={cuosState} />
+      <SystemCard    system={system} cuosState={cuosState} resources={resources} />
       <IaCCard       appState={appState} config={config} />
     </div>
   );

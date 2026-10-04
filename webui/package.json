@@ -9,6 +9,9 @@
     "dev:mock": "node dev/run.js"
   },
   "dependencies": {
+    "@fontsource/dm-mono": "^5.3.0",
+    "@fontsource/instrument-sans": "^5.3.0",
+    "@tabler/icons-webfont": "^3.48.0",
     "basic-auth": "^3.0.0",
     "bcrypt": "^6.0.0",
     "express": "^5.2.1",
