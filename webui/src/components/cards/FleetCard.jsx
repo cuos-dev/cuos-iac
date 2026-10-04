@@ -46,6 +46,7 @@ export default function FleetCard({ fleet = {} }) {
           <Share on={sh.iac_state !== false} label="IaC state" />
           <Share on={sh.network !== 'none'} label="Addresses" note={sh.network === 'full' ? 'all interfaces, routes, DNS' : sh.network === 'none' ? undefined : 'default route only'} />
           <Share on={logs.length > 0} label="Logs" note={logs.length ? logs.join(', ') : undefined} />
+          <Share on={sh.backup !== false} label="Backup status" />
           <Share on={sh.remote_update !== false} label="Remote update" note={sh.remote_update === false ? 'not allowed' : 'allowed'} />
         </ul>
 
