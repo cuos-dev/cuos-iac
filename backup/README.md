@@ -99,6 +99,42 @@ ssh material and the last status.
 - The container also listens on `/socket/cuos-backup.sock` for one JSON line: `{"command":"status"}`, `{"command":"snapshots"}` or
   `{"command":"run"}` (back up now). Whoever shares the socket volume can ask: let only an administrator's request through.
 
+## Target: restic rest-server (append-only)
+
+Checked against `restic/rest-server` 0.14 with the backup image (restic 0.18). The server keeps the backups safe from the device:
+
+```yaml
+services:
+  rest-server:
+    image: restic/rest-server:latest
+    environment:
+      # the image takes its options from OPTIONS (a `command:` would replace the image's start script)
+      OPTIONS: "--append-only --private-repos"
+    ports: ["<LAN address>:8000:8000"]
+    volumes: ["rest-data:/data"]
+    restart: unless-stopped
+volumes:
+  rest-data:
+```
+
+One user per device in `/data/.htpasswd` (`htpasswd -B -c … jarvis`, or `docker exec -it rest-server create_user jarvis`); with `--private-repos` that user reaches only `/jarvis/`.
+On the device (`system.json`; the two credentials are secrets, in `system_secrets.json` or the environment of the container):
+
+```json
+"backup_repository": "rest:http://<nas>:8000/jarvis",
+"backup_env": { "RESTIC_REST_USERNAME": "jarvis", "RESTIC_REST_PASSWORD": "<its password>" },
+"backup_forget": false
+```
+
+What was checked: backup and restore work; `forget --prune` from the device is refused (`403`), so is deleting or overwriting a snapshot or an index
+(the files stay); another user, or none, gets `401` on the repository (`/other/` can be created by that user, `/third/` not).
+Pruning therefore happens on the server side, as a job with the repository password and full access to the data directory:
+`restic unlock --remove-all` (only when no backup runs; a refused prune from the device leaves a lock), then
+`restic forget --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6`. Mind the file owner: the data directory belongs to the server's user, run the job with
+`--volumes-from` the rest-server container or as that user.
+`--prometheus` (with `--prometheus-no-auth`, otherwise it answers 401) counts reads and writes per repository and type since the server started; there is no "last write" time in it.
+Without TLS (`--tls` or a proxy) the user name and password are readable on the network; the backup data are encrypted by restic anyway.
+
 ## Restore
 
 By hand, from the device or any machine that has the repository password:
