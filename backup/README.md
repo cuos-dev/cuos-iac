@@ -1,0 +1,102 @@
+# cuos-iac-backup
+
+Optional restic backups for a CuOS IaC device. Design and reasons: [DESIGN.md](DESIGN.md). A device that does not
+include this service has no backups and pays nothing for the feature.
+
+## What it does
+
+On a schedule (`backup_schedule`, default 03:00) it
+
+1. asks Docker for running containers with the label `cuos.backup.dump` and runs each dump command inside them,
+2. backs up `backup_paths` **and** the dumps with restic (snapshots carry the device's `hostname`),
+3. applies `backup_retention` (`restic forget --prune`), unless `backup_forget` is `false`,
+4. publishes its status and calls `backup_ping_url` (or `backup_ping_fail_url` when it did not work out).
+
+A repository is created only when there is none at that location. A wrong password, an unreachable target or a lock is an
+error, never a reason to initialise something new. `restic check` runs on `backup_check` (default weekly; `off` to skip).
+
+## Configuration (`system.json`)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `backup_repository` | — | restic repository: a path, `sftp:user@host:/path`, `rest:https://…`, `s3:…`. Required. |
+| `backup_password` | — | Required. Keep it in the encrypted secrets **and** somewhere outside the device: without it the backups cannot be read. |
+| `backup_env` | `{}` | Environment the target needs (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, …). Names in capitals only. |
+| `backup_ssh_key`, `backup_known_hosts` | — | For an sftp target: the private key and the pinned host key (`host ssh-ed25519 AAAA…`). Both or neither; the host key is always checked. |
+| `backup_schedule` | `0 3 * * *` | Five field cron expression, in the container's time zone. |
+| `backup_paths` | `["/data"]` | Absolute paths **as the container sees them**: mount what you want to back up into it, read-only. |
+| `backup_exclude` | `[]` | restic `--exclude` patterns. |
+| `backup_retention` | `{daily: 7, weekly: 4, monthly: 6}` | Keys `last`, `hourly`, `daily`, `weekly`, `monthly`, `yearly`. Keeping nothing is refused. |
+| `backup_forget` | `true` | `false` for append-only targets: this device then never deletes; prune from the target side. |
+| `backup_check` | `weekly` | `daily`, `weekly`, `monthly`, a cron expression, or `off`. |
+| `backup_dump_timeout_sec` | `3600` | A dump that runs longer is killed and fails the run. |
+| `backup_ping_url`, `backup_ping_fail_url` | — | Called with `GET` after a run that is `ok` / not `ok`. |
+| `enable_backup` | `true` | `false` stops the container at start. |
+
+## Dumps for databases
+
+Put labels on the service in its own compose definition:
+
+```yml
+services:
+  postgresql:
+    labels:
+      cuos.backup.dump: "pg_dumpall -U postgres"
+      cuos.backup.dump.name: "postgresql.sql"          # optional, default <service>.dump
+      cuos.backup.exclude: "/mnt/data/postgresql"      # optional: the live data files, so the dump is the only copy
+  mariadb:
+    labels:
+      cuos.backup.dump: 'mariadb-dump --all-databases -u root -p"$MARIADB_ROOT_PASSWORD"'
+```
+
+The command runs with `sh -c` inside the container (so its environment variables are there), and its output is the dump. A
+failing, empty or too slow dump fails the whole run: a backup without its database must not look like success.
+`cuos.backup.exclude` patterns (comma or newline separated) are matched against paths **as the backup container sees them**.
+Dumps are in the snapshot under `/staging/<name>`.
+
+## Running it
+
+```yml
+services:
+  cuos-iac-backup:
+    image: ghcr.io/cuos-dev/cuos-iac-backup:<tag>
+    restart: always
+    environment:
+      DOCKER_HOST: tcp://dockerproxy:2375        # a Docker proxy that allows CONTAINERS, EXEC and POST, nothing else
+      TZ: Europe/Berlin
+    volumes:
+      - { type: bind, source: "${SYSTEM_CONFIG_PATH:-/system.json}", target: /system.json, read_only: true }
+      - { type: volume, source: iac-socket, target: /socket }
+      - { type: volume, source: backup-state, target: /data }
+      - { type: bind, source: "${DATASTORE_PATH}/zigbee2mqtt", target: /src/zigbee2mqtt, read_only: true }
+volumes:
+  iac-socket: { name: "${IAC_SOCKET_VOLUME:-iac-socket}", external: true }
+  backup-state: {}
+```
+
+`backup_paths` is then `["/src"]`. The container is not privileged and has no access to the Docker socket itself, only to the proxy
+(without `EXEC` the dump fails with a clear 403, which is what you want to see in the status). `/data` holds restic's cache, the
+ssh material and the last status.
+
+## Status and control
+
+- The status (last run and check, dumps with sizes, snapshot count, next run, the repository without credentials) is written to
+  `/data/status.json` and sent to the IaC manager as `backup:status:set` (ignored by a manager that does not know it yet).
+- The container also listens on `/socket/cuos-backup.sock` for one JSON line: `{"command":"status"}`, `{"command":"snapshots"}` or
+  `{"command":"run"}` (back up now). Whoever shares the socket volume can ask: let only an administrator's request through.
+
+## Restore
+
+By hand, from the device or any machine that has the repository password:
+
+```
+docker exec -it cuos-iac-backup sh
+restic snapshots
+restic restore latest --target /tmp/restore --include /src/zigbee2mqtt
+restic dump latest /staging/postgresql.sql | docker exec -i <postgres container> psql -U postgres
+```
+
+## Development
+
+`npm test` (here): schedule, configuration, dumps, and whole runs against a real `restic` (skipped if it is not installed) with a stand-in
+`docker`. `docker build -t cuos-iac-backup .` builds the image.

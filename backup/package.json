@@ -1,0 +1,12 @@
+{
+  "name": "cuos-backup",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Optional restic backup container for a cuos-iac host",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "test": "node --test"
+  }
+}

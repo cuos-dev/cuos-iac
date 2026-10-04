@@ -1,6 +1,6 @@
 # Backup (restic): design
 
-Status: **design only, nothing is built yet.** This is the agreed starting point, not a description of working code.
+Status: the container (`agent.js`, `job.js`, ...) is built and tested; the status in the IaC manager (`backup:status`), the web UI card and the release compose file are still to do. See [README.md](README.md) for what exists.
 
 ## Goals
 
