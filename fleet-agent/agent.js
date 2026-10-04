@@ -9,6 +9,7 @@ import { spawn } from 'child_process';
 import { createRequire } from 'module';
 import { resolveShares, filterResources, filterAppState } from './share.js';
 import { makeRedactor } from './redact.js';
+import { cleanRepoUrl, shortVersion, primaryIp } from './clean.js';
 const agentVersion = createRequire(import.meta.url)('./package.json').version;
 
 // ---- Configuration Loading ----
@@ -31,7 +32,7 @@ if (!fleetEnabled) {
 const fleetServerUrl = systemConfig.fleet_server_url || process.env.FLEET_SERVER_URL;
 const fleetSecret = systemConfig.fleet_secret || process.env.FLEET_SECRET || 'changeme';
 const tags = systemConfig.fleet_tags || [];
-const repoUrl = systemConfig.iac_repo_url || '';
+const repoUrl = cleanRepoUrl(systemConfig.iac_repo_url || '') || '';   // never with the token that may be in it
 const repoBranch = systemConfig.iac_repo_branch || 'main';
 const heartbeatIntervalSec = systemConfig.heartbeat_interval_sec || 30;
 // ponytail: these are read once; restart agent to pick up changes
@@ -165,7 +166,7 @@ function connect() {
       type: 'client_hello',
       uuid,
       hostname,
-      cuos_version: cuosVersion,
+      cuos_version: shortVersion(cuosVersion),
       agent_version: agentVersion,
       tags,
       repo_url: repoUrl,
@@ -291,6 +292,7 @@ async function collectAndSendMetrics() {
       virt_type: resourcesData.virt_type,
       network: resourcesData.network,
       default_route_ip: resourcesData.default_route_ip,
+      primary_ip: primaryIp(resourcesData),
       dns_servers: resourcesData.dns_servers,
       ntp_servers: resourcesData.ntp_servers,
       ntp_service_active: resourcesData.ntp_service_active,

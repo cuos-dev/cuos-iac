@@ -80,8 +80,8 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta, canAct }) 
             ? <span class={`version-chip ${isOutdated(d.agent_version, latestAgent) ? 'outdated' : ''}`}>{d.agent_version}</span>
             : <span class="muted">—</span>}
         </td>
-        <td class="col-ip">{r.default_route_ip
-          ? <span class="mono">{r.default_route_ip}</span>
+        <td class="col-ip">{r.primary_ip
+          ? <span class="mono" title={r.default_route_ip ? `gateway ${r.default_route_ip}` : undefined}>{r.primary_ip}</span>
           : sh.network === 'none' ? <span class="muted not-shared" title="The device owner does not share addresses"><i class="ti ti-lock" /> not shared</span> : <span class="muted">—</span>}</td>
         <td class="col-iac">
           {as.iac_state

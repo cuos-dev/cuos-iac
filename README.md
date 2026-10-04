@@ -245,7 +245,7 @@ is announced to the server, and the server's UI shows what is not available:
 |---|---|---|
 | `resources` | `true`, `false` | CPU, RAM, disk, uptime. |
 | `iac_state` | `true`, `false` | State, commit and error of the IaC manager. |
-| `network` | `"summary"`, `"full"`, `"none"` | `summary`: the default route address only. `full`: all interfaces, DNS, NTP and routes. `none`: no addresses. |
+| `network` | `"summary"`, `"full"`, `"none"` | `summary`: the device's own address and its gateway. `full`: all interfaces, DNS, NTP and routes. `none`: no addresses. |
 | `logs` | `[]`, or a list of `"iac"` and/or `"system"` | Which logs leave the device. `"iac"`: the IaC manager's own lines from the CuOS log. `"system"`: the journal units named in `fleet_log_units` (without units it shares nothing). Anything else, including `true` or `"all"`, shares nothing. Container logs are not supported. |
 | `logs_redact` | `{ "builtin": true, "ips": false, "patterns": [] }` | Lines are scrubbed before they are sent: passwords, tokens, bearer headers, private keys and credentials in URLs by default (`builtin`); `ips` keeps only the first three octets of IPv4 addresses; `patterns` are your own regular expressions. |
 | `remote_update` | `true`, `false` | Whether the server may ask the device to check its repository now. The device still applies only what the repository says, with the usual signature and digest checks. The agent logs who asked. |
@@ -313,6 +313,11 @@ behalf of another.
 The roles are enforced by the server. After 10 wrong passwords from one address,
 logins from it are refused for five minutes. The UI is served only to signed-in
 users. Agents authenticate with a bearer header; current agents never put a secret in a URL.
+
+What a device reports about itself is cleaned on the way in: a repository URL loses any credentials in it
+(`https://user:token@host/…` is shown as `https://host/…`), and a version that is a whole image reference
+(`…/cuos-system:v0.6.1@sha256:…`) is shortened to its tag. The agent does it before it sends, the server does it again
+(an older agent cannot be changed), and cleans what it had stored before.
 
 ### Older agents (protocol 1)
 

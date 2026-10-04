@@ -11,5 +11,5 @@ export const sharesLogs = d => logSources(d).length > 0;
 export function addressesOf(d) {
   const r = d.metrics?.resources || {};
   const ips = (r.network || []).map(n => (n.ip || '').split('/')[0]).filter(Boolean);
-  return [...new Set([r.default_route_ip, ...ips].filter(Boolean))];
+  return [...new Set([r.primary_ip, r.default_route_ip, ...ips].filter(Boolean))];
 }

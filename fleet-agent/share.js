@@ -4,7 +4,7 @@
 //   "fleet_share": {
 //     "resources":     true,        // cpu, ram, disk, uptime
 //     "iac_state":     true,        // state, commit, error of the IaC manager
-//     "network":       "summary",   // "none" | "summary" (default route address only) | "full" (all interfaces, routes, dns, ntp)
+//     "network":       "summary",   // "none" | "summary" (own address and gateway) | "full" (all interfaces, routes, dns, ntp)
 //     "logs":          [],          // sources to forward: "iac" (the IaC manager's lines of the CuOS log) and/or
 //                                   // "system" (the journal units named in fleet_log_units). Default: nothing.
 //     "logs_redact":   { "builtin": true, "ips": false, "patterns": [] }   // see redact.js
@@ -31,7 +31,7 @@ export function resolveShares(cfg = {}) {
   };
 }
 
-const SUMMARY = ['default_route_ip'];
+const SUMMARY = ['default_route_ip', 'primary_ip'];   // the gateway and the device's own address
 const FULL = [...SUMMARY, 'network', 'dns_servers', 'ntp_servers', 'ntp_service_active', 'ntp_synchronizede', 'routes'];
 const LOAD = ['cpu_usage', 'cpu_cores', 'ram_percent', 'mem_used_mb', 'mem_total_mb', 'disk_percent', 'disk_used_mb', 'disk_total_mb', 'uptime_seconds', 'virt_type'];
 

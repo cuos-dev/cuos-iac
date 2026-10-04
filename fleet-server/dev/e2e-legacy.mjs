@@ -14,12 +14,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const out = (l, v) => console.log(l.padEnd(52), v);
 
 // what the old agent does: the secret in the path, hello with protocol_version 1 and the uuid in every message
-async function oldAgent(uuid, { path = '/' + SECRET, protocol = 1 } = {}) {
+async function oldAgent(uuid, { path = '/' + SECRET, protocol = 1, hello = {} } = {}) {
   const inbox = []; const ws = new WebSocket(WSB + path);
   const res = await new Promise(r => { ws.on('open', () => r({ ok: true })); ws.on('unexpected-response', (_, x) => r({ ok: false, code: x.statusCode })); ws.on('error', () => {}); });
   if (!res.ok) return res;
   let closed = null; ws.on('close', (c, why) => { closed = `${c} ${why}`; }); ws.on('message', raw => inbox.push(JSON.parse(raw)));
-  ws.send(JSON.stringify({ type: 'client_hello', uuid, hostname: 'old-' + uuid.slice(-4), cuos_version: '0.3', tags: [], repo_url: '', repo_branch: 'main', protocol_version: protocol }));
+  ws.send(JSON.stringify({ type: 'client_hello', uuid, hostname: 'old-' + uuid.slice(-4), cuos_version: '0.3', tags: [], repo_url: '', repo_branch: 'main', protocol_version: protocol, ...hello }));
   await sleep(400);
   return { ok: true, ws, inbox, closed: () => closed };
 }
@@ -37,6 +37,16 @@ const up = await api(`/api/clients/${a}/update`, 'POST'); await sleep(300);
 out('update trigger reaches it', `${up.status} / ${o.inbox.some(m => m.type === 'update_trigger')}`);
 o.ws.send(JSON.stringify({ type: 'update_status', uuid: a, phase: 'finished', success: true })); await sleep(300);
 out('update status recorded', (await dev(a)).status);
+
+console.log('## 1b what an old agent reports is cleaned: credentials in the repo URL, an image reference as version, the own address');
+const q = id(8), oq = await oldAgent(q, { hello: { repo_url: 'https://oldies:github_pat_SECRET@github.com/oldies/iac.git', cuos_version: 'ghcr.io/cuos-dev/cuos-system:v0.6.1@sha256:' + 'ab'.repeat(32) } });
+oq.ws.send(JSON.stringify({ type: 'metrics', uuid: q, state: {}, resources: { default_route_ip: '192.168.1.1', network: [{ interface: 'eth0', ip: '192.168.1.50/24' }], routes: ['default via 192.168.1.1 dev eth0 proto dhcp src 192.168.1.50 metric 100'] }, app_state: {} })); await sleep(300);
+const dq = await dev(q);
+out('repo url without the token', dq.repo_url);
+out('version is the tag', dq.cuos_version);
+out('own address vs gateway', `${dq.metrics?.resources?.primary_ip} / ${dq.metrics?.resources?.default_route_ip}`);
+out('the token is nowhere in the record', !JSON.stringify(dq).includes('SECRET'));
+oq.ws.close();
 
 console.log('## 2 messages cannot speak for another device');
 const b = id(2), o2 = await oldAgent(b);

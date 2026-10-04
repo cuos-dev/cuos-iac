@@ -7,4 +7,4 @@ CMD ["npm","start"]
 
 COPY package*.json ./
 RUN npm install --omit=dev || npm install --omit=dev
-COPY agent.js share.js redact.js ./
+COPY agent.js share.js redact.js clean.js ./

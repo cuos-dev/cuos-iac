@@ -46,7 +46,7 @@ export function DetailPanel({ device: d, meta, canAct }) {
               <dt>CPU</dt>    <dd>{fmt.pct(r.cpu_usage)} ({r.cpu_cores ?? '—'} cores)</dd>
               <dt>RAM</dt>    <dd>{fmt.pct(r.ram_percent)} ({r.mem_used_mb ?? '—'} / {r.mem_total_mb ?? '—'} MB)</dd>
               <dt>Disk</dt>   <dd>{fmt.pct(r.disk_percent)} ({r.disk_used_mb ?? '—'} / {r.disk_total_mb ?? '—'} MB)</dd>
-              <dt>IP</dt>     <dd class="mono-sm">{r.default_route_ip || '—'}</dd>
+              <dt>IP</dt>     <dd class="mono-sm">{r.primary_ip || (sh.network === 'none' ? 'not shared' : '—')}</dd>
               <dt>Uptime</dt> <dd>{fmt.uptime(r.uptime_seconds)}</dd>
             </dl>
           </section>
@@ -57,6 +57,7 @@ export function DetailPanel({ device: d, meta, canAct }) {
               ? <span class="muted"><i class="ti ti-lock" /> Not shared by this device.</span>
               : <>
                   <dl>
+                    {ifaces.length === 0 && r.primary_ip && <><dt>Address</dt><dd class="mono-sm">{r.primary_ip}</dd></>}
                     {ifaces.map((n, i) => <><dt>{n.interface || `if ${i + 1}`}</dt><dd class="mono-sm">{n.ip}</dd></>)}
                     <dt>Gateway</dt><dd class="mono-sm">{r.default_route_ip || '—'}</dd>
                     {sh.network === 'full' && <><dt>DNS</dt><dd class="mono-sm">{(r.dns_servers || []).join(', ') || '—'}</dd>
@@ -67,7 +68,7 @@ export function DetailPanel({ device: d, meta, canAct }) {
                       <ul>{r.routes.map((x, i) => <li key={i}>{x}</li>)}</ul>
                     </details>
                   )}
-                  {sh.network === 'summary' && <div class="muted" style="font-size:11px;margin-top:4px">The device shares only its default route address.</div>}
+                  {sh.network === 'summary' && <div class="muted" style="font-size:11px;margin-top:4px">The device shares only its own address and its gateway.</div>}
                 </>}
           </section>
 

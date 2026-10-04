@@ -9,6 +9,7 @@ import fs from 'fs';
 import { parse as parseBasicAuth } from 'basic-auth';
 import Database from 'better-sqlite3';
 import crypto from 'crypto';
+import { cleanRepoUrl, shortVersion, primaryIp } from './sanitize.js';
 import bcrypt from 'bcryptjs';
 import { EventEmitter } from 'events';
 import { createStore } from './store.js';
@@ -128,7 +129,7 @@ function sanitizeShares(raw) {
     remote_update: raw.remote_update !== false,
   };
 }
-const NET_SUMMARY = ['default_route_ip'];
+const NET_SUMMARY = ['default_route_ip', 'primary_ip'];   // the gateway and the device's own address
 const NET_FULL = [...NET_SUMMARY, 'network', 'dns_servers', 'ntp_servers', 'ntp_service_active', 'ntp_synchronizede', 'routes'];
 const LOAD_FIELDS = ['cpu_usage', 'cpu_cores', 'ram_percent', 'mem_used_mb', 'mem_total_mb', 'disk_percent', 'disk_used_mb', 'disk_total_mb', 'uptime_seconds', 'virt_type'];
 function scrubResources(resources, shares) {
@@ -158,6 +159,20 @@ function rowToDevice(row) {
 }
 const clients = {};
 for (const row of stmts.allDevices.all()) clients[row.id] = rowToDevice(row);
+// what is stored from before the intake was cleaned: a repository URL may carry a token, a version may be a whole image reference
+{
+  const fix = db.prepare('UPDATE devices SET repo_url=@repoUrl, cuos_version=@cuosVersion WHERE id=@id');
+  let n = 0;
+  for (const c of Object.values(clients)) {
+    const repoUrl = cleanRepoUrl(c.repo_url) ?? c.repo_url, cuosVersion = shortVersion(c.cuos_version) ?? c.cuos_version;
+    if (repoUrl !== c.repo_url || cuosVersion !== c.cuos_version) { c.repo_url = repoUrl; c.cuos_version = cuosVersion; fix.run({ id: c.id, repoUrl, cuosVersion }); n++; }
+  }
+  if (n) {
+    // an UPDATE leaves the old text in the file's free pages and in the WAL; rewrite the file so a token does not stay behind
+    try { db.pragma('wal_checkpoint(TRUNCATE)'); db.exec('VACUUM'); db.pragma('wal_checkpoint(TRUNCATE)'); } catch (e) { console.warn(JSON.stringify({ level: 'warn', msg: 'vacuum failed', error: e.message })); }
+    console.log(JSON.stringify({ level: 'info', msg: 'cleaned stored repository URLs / versions', devices: n }));
+  }
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -508,9 +523,9 @@ function onHello(ws, msg) {
   if (legacy !== ((msg.protocol_version ?? 1) < 2)) { ws.close(1008, legacy ? 'a protocol 2 agent uses the Authorization header' : 'protocol too old'); return; }
   if (ws.ctx.mode === 'token' && ws.ctx.deviceId !== uuid) { ws.close(1008, 'uuid does not match token'); return; }
   const hello = {
-    hostname: str(msg.hostname, 128), cuos_version: str(msg.cuos_version, 64), agent_version: str(msg.agent_version, 64),
+    hostname: str(msg.hostname, 128), cuos_version: shortVersion(str(msg.cuos_version, 400)), agent_version: str(msg.agent_version, 64),
     tags: Array.isArray(msg.tags) ? msg.tags.filter(t => typeof t === 'string').slice(0, 20).map(t => t.slice(0, 64)) : [],
-    repo_url: str(msg.repo_url, 256), repo_branch: str(msg.repo_branch, 128), protocol_version: msg.protocol_version ?? 1, shares: legacy ? null : sanitizeShares(msg.shares),
+    repo_url: cleanRepoUrl(str(msg.repo_url, 512))?.slice(0, 256) ?? null, repo_branch: str(msg.repo_branch, 128), protocol_version: msg.protocol_version ?? 1, shares: legacy ? null : sanitizeShares(msg.shares),
   };
   const known = clients[uuid], state = known?.enrollment?.state;
 
@@ -647,7 +662,10 @@ wss.on('connection', (ws) => {
     } else if (msg.type === 'logs') {
       ingestLogs(uuid, msg.entries);
     } else if (msg.type === 'metrics') {
-      const { state, resources, app_state } = msg;
+      const { state, app_state } = msg;
+      let resources = msg.resources;
+      // the device's own address (a protocol 1 agent only sends the pieces; default_route_ip is the gateway)
+      if (resources && typeof resources === 'object' && !resources.primary_ip) { const ip = primaryIp(resources); if (ip) resources = { ...resources, primary_ip: ip }; }
       const shares = clients[uuid].shares;
       const metricsObj = { state, resources: scrubResources(resources, shares), app_state: shares && !shares.iac_state ? {} : app_state, collected_at: now };
       const metricsJson = JSON.stringify(metricsObj);
