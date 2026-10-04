@@ -115,3 +115,19 @@ jobs:
             echo "::endgroup::"
           done
           exit "${status}"
+
+  node:
+    name: Node tests and UI builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Tools some tests use (skipped when missing)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq restic sqlite3
+
+      - name: Test every Node package, build every UI
+        shell: bash
+        run: |
+          node --version
+          .github/scripts/node-checks.sh
