@@ -222,7 +222,8 @@ include:
 | `fleet_tags` | `[]` | Labels this device carries, for grouping. |
 | `fleet_uuid` | generated | Pin the device's identity. It wins over a stored one and survives a lost `/data`. Otherwise one is generated into `/data/state_fleet_uuid`; without a persistent `/data` the device then shows up as a new one after every restart, and the agent says so in its log. |
 | `fleet_share` | see below | What this device tells the server. |
-| `fleet_log_units` | `[]` | systemd units whose journal is forwarded, when `fleet_share.logs` contains `"system"`. |
+| `fleet_ca` | — | PEM text of the server's certificate, or of the CA that signed it, when the server has a certificate of its own (`FLEET_TLS_CERT`). The connection is still verified against it. Not needed for a certificate from a public CA. |
+| `fleet_log_units` | `[]` | systemd units whose journal is forwarded, when `fleet_share.logs` contains `"system"`. **Needs `journalctl` in the agent's container and the host's journal mounted into it, which the current image does not provide:** without it the agent says so once and forwards nothing. Treat `"system"` as experimental. |
 | `enable_fleet` | `true` | `false` stops the agent at start. |
 | `heartbeat_interval_sec` | `30` | How often the agent says it is alive. |
 | `metrics_interval_sec` | `60` | How often it reports load. |
@@ -260,6 +261,7 @@ The server is configured through environment variables:
 |---|---|---|
 | `FLEET_SECRET` | `changeme` | The bootstrap secret agents enrol with. The server warns while it is the default. |
 | `FLEET_LEGACY` | `on` | `off` refuses agents that still speak protocol 1 (see *Older agents* below). |
+| `FLEET_TLS_CERT`, `FLEET_TLS_KEY` | — | Paths to a PEM certificate (with its chain) and its key: the server then speaks https and wss itself, no reverse proxy needed. Without them, and without `FLEET_TRUST_PROXY`, the server warns that everything travels in clear text. |
 | `FLEET_ENROLLMENT` | `auto` | `auto`: a device that knows the secret and is not yet known is enrolled at once. `approve`: an administrator has to let it in first. |
 | `FLEET_USERS_FILE` | `<data dir>/users.json` | JSON array of `{ "name", "password", "role" }`. `role` is `admin` (may trigger updates) or `viewer` (read only, no device logs); no role means `viewer`. Passwords may be bcrypt hashes (`$2b$…`) or plain text. |
 | `FLEET_ADMIN_USER`, `FLEET_ADMIN_PASS` | `admin` / `admin` | Still work and are an admin. The server warns while the password is the default. |

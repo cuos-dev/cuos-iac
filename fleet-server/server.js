@@ -3,6 +3,7 @@
 import express from 'express';
 import path from 'path';
 import http from 'http';
+import https from 'https';
 import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -378,7 +379,18 @@ app.get('/api/meta', requireAuth, (req, res) => res.json({ user: { name: req.use
 app.get('/', requireAuth, (req, res) => res.redirect('./ui'));
 app.get('/ui/*path', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'webui/dist/index.html')));
 
-const server = http.createServer(app);
+// TLS without a reverse proxy: FLEET_TLS_CERT and FLEET_TLS_KEY are paths to a PEM certificate (with its chain) and key.
+// Then the UI is https and the agents connect with wss://. Without them the server speaks plain http/ws and says so.
+const TLS_CERT = process.env.FLEET_TLS_CERT, TLS_KEY = process.env.FLEET_TLS_KEY;
+if (!!TLS_CERT !== !!TLS_KEY) { console.error(JSON.stringify({ level: 'error', msg: 'FLEET_TLS_CERT and FLEET_TLS_KEY go together' })); process.exit(1); }
+let tlsOptions = null;
+if (TLS_CERT) {
+  try { tlsOptions = { cert: fs.readFileSync(TLS_CERT), key: fs.readFileSync(TLS_KEY), minVersion: 'TLSv1.2' }; }
+  catch (e) { console.error(JSON.stringify({ level: 'error', msg: `cannot read the TLS files: ${e.message}` })); process.exit(1); }
+} else if (!process.env.FLEET_TRUST_PROXY) {
+  warn('no TLS (FLEET_TLS_CERT / FLEET_TLS_KEY) and no reverse proxy (FLEET_TRUST_PROXY): the secret, the device tokens and the logins travel in clear text');
+}
+const server = tlsOptions ? https.createServer(tlsOptions, app) : http.createServer(app);
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1_000_000 });   // an agent's batch is far below this
 const wsConnections = new Map();   // device id -> admitted agent connection
 const pendingConns = new Map();    // device id -> connection waiting for an admin
@@ -785,5 +797,5 @@ app.post('/api/clients/:id/rotate-token', requireAdmin, (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(JSON.stringify({ level: 'info', msg: 'fleet server started', port: PORT }));
+  console.log(JSON.stringify({ level: 'info', msg: 'fleet server started', port: PORT, tls: !!tlsOptions }));
 });

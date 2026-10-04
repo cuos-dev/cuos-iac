@@ -31,6 +31,9 @@ if (!fleetEnabled) {
 
 const fleetServerUrl = systemConfig.fleet_server_url || process.env.FLEET_SERVER_URL;
 const fleetSecret = systemConfig.fleet_secret || process.env.FLEET_SECRET || 'changeme';
+// A server with a certificate of its own (not from a public CA): its certificate, or the CA that signed it, as PEM text.
+// The connection is still checked against it, nothing is switched off.
+const fleetCa = typeof systemConfig.fleet_ca === 'string' && systemConfig.fleet_ca.includes('BEGIN CERTIFICATE') ? systemConfig.fleet_ca : undefined;
 const tags = systemConfig.fleet_tags || [];
 const repoUrl = cleanRepoUrl(systemConfig.iac_repo_url || '') || '';   // never with the token that may be in it
 const repoBranch = systemConfig.iac_repo_branch || 'main';
@@ -142,7 +145,7 @@ function connect() {
   setState('connecting');
   const wsUrl = fleetServerUrl.replace(/\/$/, '') + '/ws';
   console.log('Connecting to', wsUrl, token ? '(with device token)' : '(with the bootstrap secret)');
-  ws = new WebSocket(wsUrl, { headers: { Authorization: `Bearer ${token || fleetSecret}` } });
+  ws = new WebSocket(wsUrl, { headers: { Authorization: `Bearer ${token || fleetSecret}` }, ...(fleetCa ? { ca: fleetCa } : {}) });
   const mine = ws;
   let reconnecting = false;
   const retry = () => { if (!reconnecting) { reconnecting = true; scheduleReconnect(); } };
@@ -372,8 +375,15 @@ function startJournal(units) {
       } catch {}
     }
   });
-  proc.on('error', () => {});
+  let missing = false;
+  proc.on('error', e => {
+    if (e.code === 'ENOENT') {
+      missing = true;
+      console.error('System logs are not forwarded: there is no journalctl in this container (and the host journal is not mounted). Remove "system" from fleet_share.logs, or use an image that has them.');
+    } else console.error('journalctl:', e.message);
+  });
   proc.on('close', () => {
+    if (missing) return;       // it will not appear by waiting
     console.log('journalctl exited, restarting in 10s');
     setTimeout(() => startJournal(units), 10000);
   });
