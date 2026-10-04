@@ -8,7 +8,7 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import auth from 'basic-auth';
+import { parse as parseBasicAuth } from 'basic-auth';
 import Handlebars from 'handlebars';
 
 const locale = process.env.LOCALE || 'de-DE';
@@ -59,7 +59,7 @@ app.set('views', path.join(__dirname, 'views'));
 const ADMIN_USER = process.env.FLEET_ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.FLEET_ADMIN_PASS || 'admin';
 function requireAuth(req, res, next) {
-  const creds = auth(req);
+  const creds = req.headers.authorization ? parseBasicAuth(req.headers.authorization) : undefined; // v3 takes the header string and throws without one
   if (!creds || creds.name !== ADMIN_USER || creds.pass !== ADMIN_PASS) {
     res.set('WWW-Authenticate', 'Basic realm="Fleet"');
     return res.status(401).json({ error: 'unauthorized' });
