@@ -7,7 +7,7 @@ import { WebSocket } from 'ws';
 import net from 'net';
 import { spawn } from 'child_process';
 import { createRequire } from 'module';
-import { resolveShares, filterResources, filterAppState } from './share.js';
+import { resolveShares, filterResources, filterAppState, filterBackup } from './share.js';
 import { makeRedactor } from './redact.js';
 import { cleanRepoUrl, shortVersion, primaryIp } from './clean.js';
 const agentVersion = createRequire(import.meta.url)('./package.json').version;
@@ -263,6 +263,8 @@ async function collectAndSendMetrics() {
   try { stateData = await iacApi('cuos:state'); } catch {}
   try { resourcesData = await iacApi('cuos:resources'); } catch {}
   try { appStateData = await iacApi('state'); } catch {}
+  let backupData = null;
+  if (shares.backup) { try { backupData = await iacApi('backup:status'); } catch {} }   // an IaC manager without the command answers with text: ignored
   // Derived percentages
   if (resourcesData.mem_used_mb && resourcesData.mem_total_mb) {
     resourcesData.ram_percent = Math.round((resourcesData.mem_used_mb / resourcesData.mem_total_mb) * 100);
@@ -302,7 +304,8 @@ async function collectAndSendMetrics() {
       ntp_synchronizede: resourcesData.ntp_synchronizede,
       routes: resourcesData.routes
     }, shares),
-    app_state: filterAppState(appStateData, shares)
+    app_state: filterAppState(appStateData, shares),
+    backup: filterBackup(backupData, shares)
   };
   try {
     ws.send(JSON.stringify(payload));

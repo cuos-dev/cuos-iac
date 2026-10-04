@@ -110,7 +110,7 @@ body {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 1100px) { .col-agent, .col-iac { display: none; } }
+@media (max-width: 1100px) { .col-agent, .col-iac, .col-backup { display: none; } }
 @media (max-width: 768px)  { .col-cpu { display: none; } .main { padding: 16px; } }
 @media (max-width: 480px)  { .col-ip, .col-uptime { display: none; } }
 .spin { display: inline-block; animation: spin 1s linear infinite; }

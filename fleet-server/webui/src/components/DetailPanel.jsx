@@ -22,7 +22,7 @@ export function DetailPanel({ device: d, meta, canAct }) {
 
   return (
     <tr>
-      <td colspan="10" class="detail-cell">
+      <td colspan="11" class="detail-cell">
         <div class="detail-grid">
           <section>
             <h4>Device</h4>
@@ -72,6 +72,13 @@ export function DetailPanel({ device: d, meta, canAct }) {
                 </>}
           </section>
 
+          {(d.metrics?.backup || sh.backup === false) && (
+            <section>
+              <h4>Backup</h4>
+              <BackupInfo b={d.metrics?.backup} shared={sh.backup !== false} />
+            </section>
+          )}
+
           <section>
             <h4>Sharing</h4>
             {sh.unknown
@@ -81,6 +88,7 @@ export function DetailPanel({ device: d, meta, canAct }) {
                   <ShareRow label="IaC state" on={sh.iac_state} />
                   <ShareRow label="Addresses" on={sh.network !== 'none'} note={sh.network} />
                   <ShareRow label="Logs" on={logSources(d).length > 0} note={logSources(d).join(', ') || undefined} />
+                  <ShareRow label="Backup status" on={sh.backup !== false} />
                   <ShareRow label="Remote update" on={sh.remote_update} note={sh.remote_update ? 'allowed' : 'not allowed'} />
                 </ul>}
           </section>
@@ -123,6 +131,35 @@ function ShareRow({ label, on, note }) {
       <i class={`ti ${on ? 'ti-check' : 'ti-lock'}`} /> <span>{label}</span>
       {note && <span class="muted"> · {note}</span>}
     </li>
+  );
+}
+
+function size(bytes) {
+  if (bytes == null) return null;
+  const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0, v = Number(bytes);
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${u[i]}`;
+}
+
+function BackupInfo({ b, shared }) {
+  if (!b) return <span class="muted"><i class="ti ti-lock" /> {shared ? 'No backup status reported.' : 'Not shared by this device.'}</span>;
+  const r = b.last_run, c = b.last_check;
+  return (
+    <>
+      <dl>
+        <dt>Last backup</dt><dd>{r?.finished ? fmt.date(r.finished) : '—'}</dd>
+        <dt>Result</dt><dd>{r?.result ? ({ ok: 'ok', partial: 'incomplete', failed: 'failed' }[r.result]) : '—'}{b.overdue ? ' · a scheduled backup is overdue' : ''}</dd>
+        <dt>Took</dt><dd>{r?.seconds != null ? `${r.seconds} s` : '—'}</dd>
+        <dt>Data</dt><dd>{r?.bytes != null ? `${size(r.bytes)} (${size(r.data_added) ?? '0 B'} new)` : '—'}</dd>
+        <dt>Dumps</dt><dd>{r?.dumps ?? '—'}</dd>
+        <dt>Snapshots</dt><dd>{b.snapshots ?? '—'}</dd>
+        <dt>Next</dt><dd>{b.next_run ? fmt.date(b.next_run) : '—'}</dd>
+        <dt>Last check</dt><dd>{c ? `${fmt.date(c.time)} · ${c.ok ? 'ok' : 'failed'}` : '—'}</dd>
+      </dl>
+      {r?.error && <div class="enroll-warn"><i class="ti ti-alert-triangle" /> {r.error}</div>}
+      {r?.warning && <div class="muted" style="font-size:11px;margin-top:4px">{r.warning}</div>}
+      {c && !c.ok && c.error && <div class="enroll-warn"><i class="ti ti-alert-triangle" /> Check: {c.error}</div>}
+    </>
   );
 }
 

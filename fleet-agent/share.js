@@ -8,11 +8,14 @@
 //     "logs":          [],          // sources to forward: "iac" (the IaC manager's lines of the CuOS log) and/or
 //                                   // "system" (the journal units named in fleet_log_units). Default: nothing.
 //     "logs_redact":   { "builtin": true, "ips": false, "patterns": [] }   // see redact.js
-//     "remote_update": true         // may the server ask this device to check its repository now
+//     "remote_update": true,        // may the server ask this device to check its repository now
+//     "backup":        true         // last backup: when, whether it worked, how big (from the optional backup container)
 //   }
 //
 // Nothing outside of this leaves the device, and the resolved choice is announced in client_hello so
 // the server and its UI can show what is (not) available. The server scrubs again as a second guard.
+
+import { cleanBackup } from './clean.js';
 
 const NETWORK_LEVELS = ['none', 'summary', 'full'];
 
@@ -28,6 +31,7 @@ export function resolveShares(cfg = {}) {
     // only sources the owner names; anything else (true, typos, "all") shares nothing. "system" needs units to read.
     logs: LOG_SOURCES.filter(src => (Array.isArray(s.logs) ? s.logs : [s.logs]).includes(src) && (src !== 'system' || units.length > 0)),
     remote_update: s.remote_update !== false,
+    backup: s.backup !== false,
   };
 }
 
@@ -44,3 +48,6 @@ export function filterResources(resources = {}, shares) {
 }
 
 export const filterAppState = (appState, shares) => (shares.iac_state ? appState : {});
+
+// the backup container's status, reduced (clean.js), and only when the owner shares it
+export const filterBackup = (status, shares) => (shares.backup ? cleanBackup(status) : null);

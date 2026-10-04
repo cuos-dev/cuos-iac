@@ -3,7 +3,7 @@ import { useState } from 'preact/hooks';
 import { useAction } from '../hooks/useAction.js';
 import { isOutdated } from '../lib/version.js';
 import { fmt } from '../lib/fmt.js';
-import { iacHealth, hasProblem, hasRequest } from '../lib/status.js';
+import { iacHealth, hasProblem, hasRequest, backupHealth } from '../lib/status.js';
 import { sharesOf, canRemoteUpdate } from '../lib/shares.js';
 import { DetailPanel } from './DetailPanel.jsx';
 import { ApproveReject } from './EnrollmentActions.jsx';
@@ -14,6 +14,14 @@ const STATUS_BADGE = {
   offline:  { cls: 'badge-gray',  icon: 'ti-circle',        label: 'offline' },
   updating: { cls: 'badge-amber', icon: 'ti-refresh spin',  label: 'updating' },
   error:    { cls: 'badge-red',   icon: 'ti-alert-circle',  label: 'error' },
+};
+
+const BACKUP_BADGE = {
+  ok:      { cls: 'badge-green', label: 'ok' },
+  warn:    { cls: 'badge-amber', label: 'incomplete' },
+  overdue: { cls: 'badge-amber', label: 'overdue' },
+  error:   { cls: 'badge-red',   label: 'failed' },
+  busy:    { cls: 'badge-teal',  label: 'running' },
 };
 
 const IAC_BADGE = { ok: 'badge-green', busy: 'badge-amber', error: 'badge-red' };
@@ -87,6 +95,20 @@ export function DeviceRow({ device: d, latestCuos, latestAgent, meta, canAct }) 
           {as.iac_state
             ? <span class={`badge ${iacCls}`} title={as.iac_error || as.iac_state}>{as.iac_state}</span>
             : sh.iac_state === false ? <span class="muted not-shared" title="The device owner does not share the IaC state"><i class="ti ti-lock" /> not shared</span> : <span class="muted">—</span>}
+        </td>
+        <td class="col-backup">
+          {(() => {
+            const b = d.metrics?.backup, h = backupHealth(b), bb = BACKUP_BADGE[h];
+            if (!bb) return sh.backup === false
+              ? <span class="muted not-shared" title="The device owner does not share the backup status"><i class="ti ti-lock" /> not shared</span>
+              : <span class="muted" title="No backup status reported (no backup container, or no run yet)">—</span>;
+            const when = b?.last_run?.finished;
+            return (
+              <span class={`badge ${bb.cls}`} title={[b?.last_run?.error, b?.last_run?.warning, b?.last_check?.error, when && `last backup ${fmt.date(when)}`].filter(Boolean).join('\n') || undefined}>
+                {bb.label}{when && h !== 'busy' ? ` · ${fmt.relative(when)}` : ''}
+              </span>
+            );
+          })()}
         </td>
         <td class="col-cpu">
           <div class="mini-bars">

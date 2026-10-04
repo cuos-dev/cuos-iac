@@ -10,7 +10,7 @@ import fs from 'fs';
 import { parse as parseBasicAuth } from 'basic-auth';
 import Database from 'better-sqlite3';
 import crypto from 'crypto';
-import { cleanRepoUrl, shortVersion, primaryIp } from './sanitize.js';
+import { cleanRepoUrl, shortVersion, primaryIp, cleanBackup } from './sanitize.js';
 import bcrypt from 'bcryptjs';
 import { EventEmitter } from 'events';
 import { createStore } from './store.js';
@@ -128,6 +128,7 @@ function sanitizeShares(raw) {
     network: NETWORK_LEVELS.includes(raw.network) ? raw.network : 'summary',
     logs: Array.isArray(raw.logs) ? LOG_SOURCES.filter(x => raw.logs.includes(x)) : [],
     remote_update: raw.remote_update !== false,
+    backup: raw.backup !== false,
   };
 }
 const NET_SUMMARY = ['default_route_ip', 'primary_ip'];   // the gateway and the device's own address
@@ -509,7 +510,7 @@ function applyHello(id, h, status) {
     connected_at: now, last_seen: now, status,
     // a device that now shares less must not keep showing what it shared before
     metrics: clients[id]?.metrics
-      ? { ...clients[id].metrics, resources: scrubResources(clients[id].metrics.resources, h.shares), app_state: h.shares && !h.shares.iac_state ? {} : clients[id].metrics.app_state }
+      ? { ...clients[id].metrics, resources: scrubResources(clients[id].metrics.resources, h.shares), app_state: h.shares && !h.shares.iac_state ? {} : clients[id].metrics.app_state, backup: h.shares && h.shares.backup === false ? null : clients[id].metrics.backup ?? null }
       : null,
     enrollment: clients[id]?.enrollment || { state: null, has_token: false, token_created: null, request: null },
   };
@@ -679,7 +680,7 @@ wss.on('connection', (ws) => {
       // the device's own address (a protocol 1 agent only sends the pieces; default_route_ip is the gateway)
       if (resources && typeof resources === 'object' && !resources.primary_ip) { const ip = primaryIp(resources); if (ip) resources = { ...resources, primary_ip: ip }; }
       const shares = clients[uuid].shares;
-      const metricsObj = { state, resources: scrubResources(resources, shares), app_state: shares && !shares.iac_state ? {} : app_state, collected_at: now };
+      const metricsObj = { state, resources: scrubResources(resources, shares), app_state: shares && !shares.iac_state ? {} : app_state, backup: shares && shares.backup === false ? null : cleanBackup(msg.backup), collected_at: now };
       const metricsJson = JSON.stringify(metricsObj);
       clients[uuid].last_seen = now;
       clients[uuid].metrics = metricsObj;

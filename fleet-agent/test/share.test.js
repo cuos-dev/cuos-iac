@@ -7,7 +7,7 @@ const R = { cpu_usage: 5, ram_percent: 40, disk_percent: 10, uptime_seconds: 9, 
 const keys = o => Object.keys(o).sort().join(',');
 
 test('shares: safe defaults, and junk never widens what is shared', () => {
-  assert.deepEqual(resolveShares({}), { resources: true, iac_state: true, network: 'summary', logs: [], remote_update: true });
+  assert.deepEqual(resolveShares({}), { resources: true, iac_state: true, network: 'summary', logs: [], remote_update: true, backup: true });
   assert.equal(resolveShares({ fleet_share: { network: 'everything' } }).network, 'summary');
   assert.equal(resolveShares({ fleet_share: 'yes' }).network, 'summary');
   assert.equal(resolveShares({ fleet_share: { remote_update: false } }).remote_update, false);

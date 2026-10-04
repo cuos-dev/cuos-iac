@@ -2,7 +2,8 @@
 // Fake cuos-iac agents that speak the fleet protocol (fleet-agent/agent.js) to a local fleet-server.
 // Usage: node dev/fake-agents.js   (FLEET_URL, FLEET_SECRET, FAKE_AGENTS to override)
 import WebSocket from 'ws';
-import { resolveShares, filterResources, filterAppState } from '../../fleet-agent/share.js';   // the real agent's filters
+import { resolveShares, filterResources, filterAppState, filterBackup } from '../../fleet-agent/share.js';
+import { primaryIp } from '../../fleet-agent/clean.js';   // the real agent's filters
 import { makeRedactor } from '../../fleet-agent/redact.js';
 
 const URL_ = process.env.FLEET_URL || 'ws://127.0.0.1:8085';
@@ -16,6 +17,7 @@ function spec(i) {
   const n = i + 1;
   return {
     uuid: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+    i,
     hostname: `${NAMES[i % NAMES.length]}-${String(n).padStart(2, '0')}`,
     cuos_version: i % 6 === 2 ? '2026.9.3' : '2026.10.1',          // some outdated
     agent_version: i % 9 === 4 ? '0.4.0' : '0.5.2',
@@ -26,7 +28,7 @@ function spec(i) {
     ip: `192.168.${10 + (i % 4)}.${20 + n}`,
     // privacy profile, as the owner would write it in system.json
     share: { 0: { logs: ['iac'] }, 3: { logs: ['iac'] }, 6: { logs: ['iac', 'system'] }, 9: { logs: ['iac'] }, 12: { logs: ['iac'] }, 15: { logs: ['iac', 'system'], logs_redact: { ips: true } }, 4: { network: 'full' }, 1: { network: 'full' }, 2: { remote_update: false }, 6: { resources: false },
-             7: { network: 'none' }, 8: { iac_state: false }, 10: { remote_update: false, network: 'full' } }[i],
+             7: { network: 'none' }, 8: { iac_state: false, backup: false }, 10: { remote_update: false, network: 'full' } }[i],
     units: ['sshd.service', 'docker.service'],
   };
 }
@@ -45,10 +47,20 @@ function run(a) {
 
   const full = (cpu, ram, disk) => ({ cpu_usage: cpu, cpu_cores: 4, ram_percent: Math.round(ram), mem_used_mb: Math.round(ram * 38), mem_total_mb: 3800,
     disk_percent: Math.round(disk), disk_used_mb: Math.round(disk * 290), disk_total_mb: 29000,
-    uptime_seconds: 3600 * (5 + a.uuid.length) + Math.floor(process.uptime()), default_route_ip: a.ip, virt_type: 'none',
+    uptime_seconds: 3600 * (5 + a.uuid.length) + Math.floor(process.uptime()), default_route_ip: a.ip.replace(/\.\d+$/, '.1'), virt_type: 'none',
     network: [{ interface: 'eth0', ip: `${a.ip}/24` }, { interface: 'eth1', ip: '10.10.0.5/24' }],
     dns_servers: ['192.168.1.1', '1.1.1.1'], ntp_servers: ['pool.ntp.org'], ntp_service_active: true, ntp_synchronizede: true,
     routes: [`default via ${a.ip.replace(/\.\d+$/, '.1')} dev eth0 proto dhcp metric 100`, '10.10.0.0/24 dev eth1 proto kernel scope link src 10.10.0.5'] });
+  // what the backup container would report: ok (most), failed, incomplete, overdue, running, or no backup container at all
+  const BK = i => ({ 1: 'failed', 3: 'partial', 5: 'running', 7: 'overdue', 2: 'none', 10: 'none' }[i % 11] || 'ok');
+  const hoursAgo = h => new Date(Date.now() - h * 3600e3).toISOString().replace(/\.\d+Z$/, 'Z');
+  const backupStatus = () => {
+    const k = BK(a.i);
+    if (k === 'none') return null;
+    const run = { finished: hoursAgo(k === 'overdue' ? 52 : 5), result: k === 'failed' ? 'failed' : k === 'partial' ? 'partial' : 'ok', seconds: 38.5, bytes: 6.1e8, data_added: 3.2e6, dumps: [{ name: 'postgres.sql' }, { name: 'mariadb.sql' }],
+      error: k === 'failed' ? 'dump postgres.sql (iac-postgres-1) failed: exit 1: connection refused' : null, warning: k === 'partial' ? 'sqlite /src/mealie/mealie.db: the file does not exist' : null };
+    return { state: k === 'running' ? 'running' : 'idle', updated: hoursAgo(0), overdue: k === 'overdue', snapshots: 14, next_run: new Date(Date.now() + 8 * 3600e3).toISOString(), last_run: run, last_check: { time: hoursAgo(72), ok: true } };
+  };
 
   // log lines as the real agent would queue them (scrubbed first); only the sources this device shares
   const LINES = [
@@ -72,7 +84,8 @@ function run(a) {
     const cpu = jitter(a.base.cpu, 8), ram = jitter(a.base.ram, 2), disk = a.base.disk;
     send({ type: 'metrics', uuid: a.uuid,
       state: { version: a.cuos_version },
-      resources: filterResources(full(cpu, ram, disk), shares),
+      resources: filterResources({ ...full(cpu, ram, disk), primary_ip: primaryIp(full(cpu, ram, disk)) }, shares),
+      backup: filterBackup(backupStatus(), shares),
       app_state: filterAppState({ iac_state: iac, iac_commit: 'a1b2c3d4e5f6', last_iac_start: new Date().toISOString(), ...(iac.includes('failed') ? { iac_error: 'docker compose up failed' } : {}) }, shares) });
   };
 

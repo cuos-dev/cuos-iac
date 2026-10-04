@@ -238,7 +238,8 @@ is announced to the server, and the server's UI shows what is not available:
   "iac_state": true,
   "network": "summary",
   "logs": [],
-  "remote_update": true
+  "remote_update": true,
+  "backup": true
 }
 ```
 
@@ -250,6 +251,7 @@ is announced to the server, and the server's UI shows what is not available:
 | `logs` | `[]`, or a list of `"iac"` and/or `"system"` | Which logs leave the device. `"iac"`: the IaC manager's own lines from the CuOS log. `"system"`: the journal units named in `fleet_log_units` (without units it shares nothing). Anything else, including `true` or `"all"`, shares nothing. Container logs are not supported. |
 | `logs_redact` | `{ "builtin": true, "ips": false, "patterns": [] }` | Lines are scrubbed before they are sent: passwords, tokens, bearer headers, private keys and credentials in URLs by default (`builtin`); `ips` keeps only the first three octets of IPv4 addresses; `patterns` are your own regular expressions. |
 | `remote_update` | `true`, `false` | Whether the server may ask the device to check its repository now. The device still applies only what the repository says, with the usual signature and digest checks. The agent logs who asked. |
+| `backup` | `true`, `false` | The status of the optional backup container (see `backup/README.md`): when the last backup ran, whether it worked, its size, the number of snapshots, whether one is overdue, and the error text if it failed. The fleet UI shows it as a column and in the details, and "problems" includes a failed or overdue backup. Without a backup container there is nothing to show. The error text can name a path or a host: set `false` to share nothing. |
 
 An invalid value falls back to the safe choice, never to a wider one. Agents older than this
 setting send everything; the server's UI marks them as legacy.

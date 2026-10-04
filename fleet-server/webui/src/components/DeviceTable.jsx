@@ -82,6 +82,7 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, canAct, fi
               <th style="width:95px" class="col-agent">Agent ver.</th>
               <th style="width:115px" class="col-ip">IP address</th>
               <th style="width:150px" class="col-iac">IaC state</th>
+              <th style="width:105px" class="col-backup">Backup</th>
               <th style="width:135px" class="col-cpu">CPU / RAM / Disk</th>
               <th style="width:80px" class="col-uptime">Uptime</th>
               <th style="width:90px">Last seen</th>
@@ -90,7 +91,7 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, canAct, fi
           </thead>
           <tbody>
             {pageRows.length === 0
-              ? <tr><td colspan="10" class="empty-row">No devices match filter</td></tr>
+              ? <tr><td colspan="11" class="empty-row">No devices match filter</td></tr>
               : pageRows.map(d => (
                   <DeviceRow key={d.id} device={d} latestCuos={latestCuos} latestAgent={latestAgent} meta={meta} canAct={canAct} />
                 ))

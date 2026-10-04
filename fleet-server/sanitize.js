@@ -44,3 +44,31 @@ export function primaryIp(r) {
   const pick = nets.find(n => n.interface === dev) || nets.find(n => !/^127\./.test(n.ip));
   return pick ? pick.ip.split('/')[0] : null;
 }
+
+// What the backup container reports (iac `backup:status`), reduced to what the fleet needs: when, whether it worked, how big.
+// Strings are cut, numbers checked, anything else dropped. The error text may name a path or a host: the owner can leave the whole
+// thing out with fleet_share.backup = false.
+const BACKUP_RESULTS = ['ok', 'partial', 'failed'];
+const BACKUP_STATES = ['idle', 'running', 'checking'];
+export function cleanBackup(b) {
+  if (!b || typeof b !== 'object' || Array.isArray(b)) return null;
+  const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : null);
+  const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const lr = b.last_run && typeof b.last_run === 'object' ? b.last_run : null;
+  const lc = b.last_check && typeof b.last_check === 'object' ? b.last_check : null;
+  if (!lr && !lc && !BACKUP_STATES.includes(b.state)) return null;
+  return {
+    state: BACKUP_STATES.includes(b.state) ? b.state : null,
+    updated: str(b.updated, 32),
+    overdue: b.overdue === true,
+    snapshots: Number.isInteger(b.snapshots) && b.snapshots >= 0 ? b.snapshots : null,
+    next_run: str(b.next_run, 32),
+    last_run: lr ? {
+      finished: str(lr.finished, 32), result: BACKUP_RESULTS.includes(lr.result) ? lr.result : null,
+      seconds: num(lr.seconds), bytes: num(lr.bytes), data_added: num(lr.data_added),
+      // dumps: a list from the backup container, a count once cleaned
+      dumps: Array.isArray(lr.dumps) ? lr.dumps.length : Number.isInteger(lr.dumps) && lr.dumps >= 0 ? lr.dumps : null, error: str(lr.error, 200), warning: str(lr.warning, 200),
+    } : null,
+    last_check: lc ? { time: str(lc.time, 32), ok: lc.ok === true, error: str(lc.error, 200) } : null,
+  };
+}

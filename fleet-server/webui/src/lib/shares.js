@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // What a device announces it shares. (null only for a record that predates the manifest.)
-export const sharesOf = d => d.shares ?? { resources: true, iac_state: true, network: 'summary', logs: [], remote_update: true, unknown: true };
+export const sharesOf = d => d.shares ?? { resources: true, iac_state: true, network: 'summary', logs: [], remote_update: true, backup: true, unknown: true };
 
 export const canRemoteUpdate = d => sharesOf(d).remote_update !== false;
 // the log sources a device announced ("iac", "system"); none = nothing is forwarded

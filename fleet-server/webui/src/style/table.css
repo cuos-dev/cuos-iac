@@ -92,7 +92,7 @@
 @media (max-width: 768px) { .search-box input { width: 130px; } }
 @media (max-width: 480px) { .search-box input { width: 90px; } }
 
-.col-iac .badge { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+.col-iac .badge, .col-backup .badge { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
 
 .sort-select {
   border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px;
@@ -116,7 +116,7 @@
   .fleet-table tr.device-row > td:nth-child(2)  { display: block; grid-area: status; justify-self: end; }
   .fleet-table tr.device-row > td:nth-child(3)  { display: block; grid-area: ver; }
   .fleet-table tr.device-row > td:nth-child(6)  { display: block; grid-area: iac; justify-self: end; min-width: 0; }
-  .fleet-table tr.device-row > td:nth-child(10) { display: block; grid-area: act; justify-self: end; }
+  .fleet-table tr.device-row > td:nth-child(11) { display: block; grid-area: act; justify-self: end; }
   .fleet-table tbody tr:not(.device-row), .fleet-table td.detail-cell { display: block; }
   .device-id { max-width: none; }
   .table-toolbar .search-box { margin-left: 0; }
