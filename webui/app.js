@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import express from 'express';
 import { engine } from 'express-handlebars';
-import basicAuth from 'basic-auth';
+import { parse as parseBasicAuth } from 'basic-auth';
 import bodyParser from 'body-parser';
 import net from 'net';
 import path from 'path';
@@ -91,6 +91,9 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.engine('handlebars', engine());
 app.set('view engine', 'handlebars');
 app.set('views', path.join(__dirname, 'views'));
+
+// basic-auth v3 takes the header string (v2 took the request) and throws on a missing header
+const basicAuth = req => (req.headers.authorization ? parseBasicAuth(req.headers.authorization) : undefined);
 
 function auth(req, res, next) {
   const user = basicAuth(req);
