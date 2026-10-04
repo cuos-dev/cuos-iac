@@ -46,11 +46,14 @@ function loadUsers(cfg) {
   return users;
 }
 const USERS = loadUsers(config);
+// system.json "iac_viewer_logs": false keeps the system log from viewers (the default is that they see it, as agreed)
+const VIEWER_LOGS = config.iac_viewer_logs !== false;
+const mayReadLogs = ws => ws.user?.role === 'admin' || VIEWER_LOGS;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-app.use(express.static(path.join(__dirname, 'dist')));
+// the static files come after the login (below), so nothing of the UI is public
 
 // basic-auth v3 takes the header string (v2 took the request) and throws on a missing header
 const basicAuth = req => (req.headers.authorization ? parseBasicAuth(req.headers.authorization) : undefined);
@@ -70,9 +73,41 @@ function checkCreds(cred) {
   return ok ? user : null;
 }
 
+// Wrong passwords: after MAX_FAILS from one address the address is refused for LOCK_MS (the check itself is not even run).
+// Behind a reverse proxy set TRUST_PROXY=1, or every client looks like the proxy and one attacker locks everybody out.
+const MAX_FAILS = 10, LOCK_MS = 5 * 60_000;
+const failures = new Map();                 // ip -> { n, since }
+const clientIp = req => {
+  if (process.env.TRUST_PROXY) { const f = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim(); if (f) return f; }
+  return req.socket.remoteAddress || 'unknown';
+};
+const locked = ip => {
+  const f = failures.get(ip);
+  if (!f) return false;
+  if (Date.now() - f.since > LOCK_MS) { failures.delete(ip); return false; }
+  return f.n >= MAX_FAILS;
+};
+const noteFailure = ip => {
+  const f = failures.get(ip);
+  if (!f || Date.now() - f.since > LOCK_MS) failures.set(ip, { n: 1, since: Date.now() }); else f.n++;
+};
+setInterval(() => { const now = Date.now(); for (const [ip, f] of failures) if (now - f.since > LOCK_MS) failures.delete(ip); }, 60_000).unref();
+
+// a request without credentials is just the browser asking for the login prompt: it does not count
+function authenticate(req) {
+  const ip = clientIp(req);
+  if (locked(ip)) return { status: 429 };
+  const cred = basicAuth(req);
+  const user = checkCreds(cred);
+  if (user) return { user };
+  if (cred) noteFailure(ip);
+  return { status: 401 };
+}
+
 function auth(req, res, next) {
-  const user = checkCreds(basicAuth(req));
-  if (user) { req.user = user; return next(); }
+  const r = authenticate(req);
+  if (r.user) { req.user = r.user; return next(); }
+  if (r.status === 429) { res.set('Retry-After', String(LOCK_MS / 1000)); return res.status(429).send('Too many attempts. Try again in a few minutes.'); }
   res.set('WWW-Authenticate', 'Basic realm="cuos"');
   res.status(401).send('Authentication required.');
 }
@@ -121,7 +156,7 @@ const LOG_HISTORY = 200;
 
 function broadcast(msg) {
   const str = JSON.stringify(msg);
-  for (const ws of clients) if (ws.readyState === 1 /* OPEN */) ws.send(str);
+  for (const ws of clients) if (ws.readyState === 1 /* OPEN */ && (msg.type !== 'log' || mayReadLogs(ws))) ws.send(str);
 }
 
 async function pollState() {
@@ -170,6 +205,7 @@ setInterval(pollLogs, 5000);
 // --- Express routes ---
 
 app.use(auth);
+app.use(express.static(path.join(__dirname, 'dist')));
 
 app.get('/api/config', (req, res) => {
   const rawUrl = config.iac_repo_url || '';
@@ -179,6 +215,7 @@ app.get('/api/config', (req, res) => {
     tz: process.env.TZ || 'Europe/Berlin',
     iac_poll_interval: config.iac_poll_interval || 21600,
     iac_manual_updates: !!config.iac_manual_updates,
+    logs: req.user.role === 'admin' || VIEWER_LOGS,
     iac_repo_url: rawUrl.replace(/^(https?:\/\/)[^/]+@/, '$1').replace(/^git@[^:]+:/, 'https://').replace(/\.git$/, ''),
     iac_repo_name: rawUrl.replace(/^https?:\/\/.+\//, '').replace(/^git@[^:]+:/, '').replace(/\.git$/, ''),
     iac_repo_branch: config.iac_repo_branch || 'main',
@@ -205,9 +242,10 @@ const wss = new WebSocketServer({ noServer: true });
 
 // ponytail: browsers forward cached basic-auth on same-origin WS upgrades; check it here
 server.on('upgrade', (req, socket, head) => {
-  const user = checkCreds(basicAuth(req));
+  const r = authenticate(req);
+  const user = r.user;
   if (!user) {
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.write(`HTTP/1.1 ${r.status} ${r.status === 429 ? 'Too Many Requests' : 'Unauthorized'}\r\n\r\n`);
     socket.destroy();
     return;
   }
@@ -217,7 +255,7 @@ server.on('upgrade', (req, socket, head) => {
 wss.on('connection', ws => {
   clients.add(ws);
   if (lastStateSerialized) ws.send(lastStateSerialized); // immediate paint on connect
-  if (recentLogs.length) ws.send(JSON.stringify({ type: 'log_history', entries: recentLogs }));
+  if (recentLogs.length && mayReadLogs(ws)) ws.send(JSON.stringify({ type: 'log_history', entries: recentLogs }));
   ws.on('close', () => clients.delete(ws));
   ws.on('error', () => clients.delete(ws));
   ws.on('message', async raw => {

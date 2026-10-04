@@ -158,7 +158,8 @@ body {
   background: var(--border); flex-shrink: 0;
 }
 .update-actions {
-  display: flex; flex-direction: column; gap: 10px; flex: 1;
+  display: flex; flex-direction: column; justify-content: center; gap: 10px; flex: 1;
+  min-height: 156px;      /* room for the progress steps, so the panel does not jump when an update starts */
 }
 .update-meta {
   font-size: 13px; color: var(--text-secondary); line-height: 1.6;
@@ -190,7 +191,7 @@ body {
 }
 
 /* Progress steps */
-.progress-steps { display: flex; flex-direction: column; gap: 6px; }
+.progress-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; }
 .progress-step {
   display: flex; align-items: center; gap: 8px;
   font-size: 13px; color: var(--text-secondary);

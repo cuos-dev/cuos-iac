@@ -224,6 +224,12 @@ A user without a `role` is a `viewer`; an unknown role is ignored. The older pai
 falls back to `admin` / `admin` and says so in its log. Prefer bcrypt hashes
 (`$2b$…`) over plain text, as `system.json` is part of the repository.
 
+Nothing of the page is public: the login comes before any file. After 10 wrong passwords from one address
+that address is refused for five minutes (a request without credentials, the browser asking for the login, does not count).
+Behind a reverse proxy set the environment variable `TRUST_PROXY=1` for the WebUI container, so the address is the client's
+and not the proxy's. Viewers see the system log by default; `"iac_viewer_logs": false` in `system.json` keeps it from them
+(the logs panel is then not shown). There is no logout: HTTP basic login lasts as long as the browser keeps it, so close the window.
+
 ## Optional: Fleet
 
 `fleet-agent/` runs on each device and connects to `fleet-server/`, which you run

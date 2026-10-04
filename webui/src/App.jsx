@@ -33,7 +33,7 @@ export default function App() {
           canAct={canAct}
         />
         <ContainersPanel ps={ps ?? []} sendAction={sendAction} canAct={canAct} />
-        <LogsPanel logs={logs} />
+        {config.logs !== false && <LogsPanel logs={logs} />}
         <Sidebar
           cuosState={cuosState}
           resources={resources ?? {}}
