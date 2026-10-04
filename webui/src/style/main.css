@@ -228,7 +228,6 @@ body {
 }
 @media (max-width: 640px) {
   .update-inner { flex-direction: column; }
-  .expand-content { grid-template-columns: 1fr !important; }
   .divider-v { display: none; }
 }
 @media (max-width: 600px) {

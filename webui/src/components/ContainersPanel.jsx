@@ -74,6 +74,10 @@ export default function ContainersPanel({ ps = [], sendAction, canAct }) {
 
       <div style="overflow-x:auto;">
         <table class="container-table">
+          <colgroup>
+            <col class="c-icon" /><col class="c-name" /><col class="c-image" /><col class="c-status" />
+            <col class="c-up" /><col class="c-size" /><col class="c-chev" />
+          </colgroup>
           <thead>
             <tr>
               <th style="width:32px;" />
@@ -95,8 +99,8 @@ export default function ContainersPanel({ ps = [], sendAction, canAct }) {
                 <Fragment key={name}>
                   <tr class={isExp ? 'expanded' : ''} onClick={() => setExpanded(isExp ? null : name)}>
                     <td style="padding-left:16px;"><i class="ti ti-brand-docker" style="font-size:16px;color:var(--accent);opacity:0.7;" /></td>
-                    <td><div class="ct-name">{name}</div></td>
-                    <td><div class="ct-image">{shortImage(c.Image || '')}</div></td>
+                    <td><div class="ct-name" title={name}>{name}</div></td>
+                    <td><div class="ct-image" title={c.Image}>{shortImage(c.Image || '')}</div></td>
                     <td><span class={`badge ${cls}`} title={c.Status}><i class={`ti ${icon}${label === 'starting' || label === 'removing' ? ' spin' : ''}`} />{label}</span></td>
                     <td><span style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted);">{containerUptime(c.Status) || '—'}</span></td>
                     <td class="col-size"><span class="ct-size">{c.Size?.split(' (')[0] || '—'}</span></td>
