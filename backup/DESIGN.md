@@ -58,7 +58,8 @@ that is expected to stay up. So the backup takes a **dump** from the live databa
   A failed dump fails the run (no silent, empty "backup").
 - The database's own data directory is **excluded** (label `cuos.backup.exclude`), so the dump is the single source.
 - Files that are consistent on their own (zigbee2mqtt's data, most configs) are simply part of `backup_paths`.
-  SQLite files that are written all the time get a dump label as well (`sqlite3 … ".backup '…'"`).
+  SQLite files are copied by the backup container itself (`backup_sqlite`, SQLite's backup through a read-only connection), because
+  the images of the services usually have no `sqlite3` to run in; see README.md.
 - Docker access goes through the Docker proxy that the device already runs, limited to `exec` and `inspect`;
   the container is not privileged and does not get the raw socket.
 

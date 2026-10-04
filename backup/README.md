@@ -29,6 +29,7 @@ error, never a reason to initialise something new. `restic check` runs on `backu
 | `backup_retention` | `{daily: 7, weekly: 4, monthly: 6}` | Keys `last`, `hourly`, `daily`, `weekly`, `monthly`, `yearly`. Keeping nothing is refused. |
 | `backup_forget` | `true` | `false` for append-only targets: this device then never deletes; prune from the target side. |
 | `backup_check` | `weekly` | `daily`, `weekly`, `monthly`, a cron expression, or `off`. |
+| `backup_sqlite` | `[]` | SQLite database files (absolute, as the container sees them) that are copied consistently, see below. |
 | `backup_dump_timeout_sec` | `3600` | A dump that runs longer is killed and fails the run. |
 | `backup_ping_url`, `backup_ping_fail_url` | — | Called with `GET` after a run that is `ok` / not `ok`. |
 | `enable_backup` | `true` | `false` stops the container at start. |
@@ -53,6 +54,19 @@ The command runs with `sh -c` inside the container (so its environment variables
 failing, empty or too slow dump fails the whole run: a backup without its database must not look like success.
 `cuos.backup.exclude` patterns (comma or newline separated) are matched against paths **as the backup container sees them**.
 Dumps are in the snapshot under `/staging/<name>`.
+
+## SQLite databases
+
+Many small services keep a SQLite file. Copying such a file while the application writes to it can give a broken copy, and most of
+these images have no `sqlite3` to dump with. So the backup container reads them itself: list the files in `backup_sqlite` and it takes a copy
+with SQLite's own backup (`sqlite3 -readonly <db> ".backup …"`) and checks it (`PRAGMA quick_check`). That works on a
+**read-only** mount while the application keeps running; the copies are in the snapshot under `/staging/sqlite/`, and the live file
+with its `-wal`, `-shm` and `-journal` is left out of the snapshot.
+
+- A database in WAL mode can be copied while the application has it open (the usual case). A closed one in WAL mode cannot be opened on a read-only mount.
+- If the copy fails (missing file, damaged, closed WAL database) the run is `partial`, the reason is in the status, and the file itself is
+  backed up as it is, so there is something in the repository.
+- A path that does not exist counts as a failure too: it shows a wrong path instead of hiding it.
 
 ## Running it
 

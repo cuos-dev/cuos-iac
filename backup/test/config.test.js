@@ -27,6 +27,12 @@ test('check: words, a cron expression, or off', () => {
   assert.throws(() => loadConfig({ ...base, backup_check: 'sometimes' }, {}));
 });
 
+test('backup_sqlite: absolute paths only', () => {
+  assert.deepEqual(loadConfig({ ...base, backup_sqlite: ['/src/a.db'] }, {}).sqlite, ['/src/a.db']);
+  assert.deepEqual(loadConfig(base, {}).sqlite, []);
+  assert.throws(() => loadConfig({ ...base, backup_sqlite: ['a.db'] }, {}), /absolute/);
+});
+
 test('bad values are refused', () => {
   assert.throws(() => loadConfig({ ...base, backup_schedule: 'nope' }, {}));
   assert.throws(() => loadConfig({ ...base, backup_paths: ['relative'] }, {}), /absolute/);

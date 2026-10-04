@@ -87,3 +87,25 @@ test('forget keeps what the retention says', { skip: !haveRestic }, async () => 
   assert.equal(JSON.parse(restic(c, 'snapshots', '--json').stdout).length, 2);
   fs.rmSync(tmp, { recursive: true });
 });
+
+const haveSqlite = spawnSync('sqlite3', ['--version']).status === 0;
+
+test('SQLite databases: a consistent copy is in the backup, the live files are not; a failure keeps the raw file and is partial', { skip: !haveRestic || !haveSqlite }, async () => {
+  const { tmp, data, cfg, job, restic } = setup();
+  const db = path.join(data, 'app.db');
+  spawnSync('sqlite3', [db, 'PRAGMA journal_mode=WAL; CREATE TABLE t(a); INSERT INTO t VALUES (42);']);
+  const c = cfg({ backup_sqlite: [db] });
+  const rec = await job(c, 'echo ok');
+  assert.equal(rec.result, 'ok', rec.error ?? rec.warning);
+  assert.ok(rec.dumps.some(d => d.name.startsWith('sqlite/') && d.name.endsWith('app.db')));
+  const ls = restic(c, 'ls', 'latest').stdout;
+  assert.match(ls, /sqlite\/.*app\.db/);
+  assert.doesNotMatch(ls, new RegExp(data.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/app\\.db'), 'the live file is left out');
+  // a database that cannot be copied: the file itself stays in the backup
+  const bad = path.join(data, 'bad.db'); fs.writeFileSync(bad, 'not a database '.repeat(500));
+  const rec2 = await job(cfg({ backup_sqlite: [bad] }), 'echo ok');
+  assert.equal(rec2.result, 'partial');
+  assert.match(rec2.warning, /sqlite .*bad\.db/);
+  assert.match(restic(c, 'ls', 'latest').stdout, /bad\.db/);
+  fs.rmSync(tmp, { recursive: true });
+});

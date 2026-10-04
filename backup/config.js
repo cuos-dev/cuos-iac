@@ -33,6 +33,8 @@ export function loadConfig(sys = {}, env = process.env) {
   const paths = list(sys.backup_paths, 'backup_paths') ?? ['/data'];
   for (const p of paths) if (!p.startsWith('/')) throw new Error(`backup_paths must be absolute: "${p}"`);
   const exclude = list(sys.backup_exclude, 'backup_exclude') ?? [];
+  const sqlite = list(sys.backup_sqlite, 'backup_sqlite') ?? [];
+  for (const p of sqlite) if (!p.startsWith('/')) throw new Error(`backup_sqlite must be absolute: "${p}"`);
 
   const retention = { ...DEFAULT_RETENTION, ...(sys.backup_retention || {}) };
   for (const [k, v] of Object.entries(retention)) {
@@ -56,7 +58,7 @@ export function loadConfig(sys = {}, env = process.env) {
   if (!Number.isInteger(dumpTimeout) || dumpTimeout < 1) throw new Error('backup_dump_timeout_sec must be a positive whole number');
 
   return {
-    repository, password, schedule, check, paths, exclude, retention, forget, extraEnv, sshKey, knownHosts, dumpTimeout,
+    repository, password, schedule, check, paths, exclude, sqlite, retention, forget, extraEnv, sshKey, knownHosts, dumpTimeout,
     pingUrl: sys.backup_ping_url || null, pingFailUrl: sys.backup_ping_fail_url || null,
     hostname: String(sys.hostname || sys.system_name || 'cuos').slice(0, 64),
   };

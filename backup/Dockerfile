@@ -2,8 +2,8 @@
 FROM node:26.10.0-alpine3.24
 
 # restic does the backups; docker-cli runs the database dumps in the labelled containers (through the Docker proxy);
-# openssh-client is for sftp targets.
-RUN apk add --no-cache restic docker-cli openssh-client tzdata
+# openssh-client is for sftp targets, sqlite for consistent copies of SQLite databases.
+RUN apk add --no-cache restic docker-cli openssh-client sqlite tzdata
 
 WORKDIR /app
 VOLUME ["/data"]
