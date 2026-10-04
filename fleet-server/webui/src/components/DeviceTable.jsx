@@ -82,7 +82,7 @@ export function DeviceTable({ devices, latestCuos, latestAgent, meta, canAct, fi
               <th style="width:95px" class="col-agent">Agent ver.</th>
               <th style="width:115px" class="col-ip">IP address</th>
               <th style="width:150px" class="col-iac">IaC state</th>
-              <th style="width:105px" class="col-backup">Backup</th>
+              <th style="width:135px" class="col-backup">Backup</th>
               <th style="width:135px" class="col-cpu">CPU / RAM / Disk</th>
               <th style="width:80px" class="col-uptime">Uptime</th>
               <th style="width:90px">Last seen</th>

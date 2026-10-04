@@ -29,6 +29,10 @@
 .topbar-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: rgba(255,255,255,0.6); margin-top: 2px; }
 .topbar-divider    { width: 1px; height: 28px; background: rgba(255,255,255,0.2); }
 
+/* between phone and desktop the clock and the secondary numbers go first, so the bar never gets wider than the window */
+@media (max-width: 900px) { .topbar-clock { display: none; } }
+@media (max-width: 760px) { .topbar-minor, .topbar-user { display: none; } .topbar { padding: 0 16px; } }
+
 @media (max-width: 600px) {
   .topbar { padding: 0 12px; gap: 8px; }
   .topbar-brand { gap: 8px; min-width: 0; }

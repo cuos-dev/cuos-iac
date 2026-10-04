@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 .table-card {
+  container: fleet / inline-size;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); overflow: hidden;
 }
@@ -89,8 +90,8 @@
 .page-btn:hover  { background: var(--teal-50); color: var(--teal-600); border-color: var(--teal-100); }
 .page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-@media (max-width: 768px) { .search-box input { width: 130px; } }
-@media (max-width: 480px) { .search-box input { width: 90px; } }
+@container fleet (max-width: 768px) { .search-box input { width: 130px; } }
+@container fleet (max-width: 480px) { .search-box input { width: 90px; } }
 
 .col-iac .badge, .col-backup .badge { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
 
@@ -99,10 +100,19 @@
   background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 12px;
 }
 
-/* Narrow screens: one card per device instead of a table that scrolls sideways.
+/* Columns drop out, least important first, as the panel (not the window) gets narrower: the table needs about 1370 px with every
+   column, and never scrolls sideways. Thresholds are the widths of the columns still shown plus some air. */
+@container fleet (max-width: 1369px) { .col-uptime { display: none; } }
+@container fleet (max-width: 1289px) { .col-agent  { display: none; } }
+@container fleet (max-width: 1194px) { .col-cpu    { display: none; } }
+@container fleet (max-width: 1059px) { .col-iac    { display: none; } }
+@container fleet (max-width: 909px)  { .col-ip     { display: none; } }
+@container fleet (max-width: 794px)  { .col-backup { display: none; } }
+
+/* Narrow panel: one card per device instead of a table that scrolls sideways.
    Name + status on top; version, IaC state and the update button below. The rest
    (agent, IP, load, uptime, last seen) is in the details. */
-@media (max-width: 640px) {
+@container fleet (max-width: 700px) {
   .filter-tabs { flex-wrap: wrap; }
   .fleet-table thead { display: none; }
   .fleet-table, .fleet-table tbody { display: block; }
