@@ -33,7 +33,7 @@ export function DetailPanel({ device: d, meta, canAct }) {
               <dt>Version</dt>  <dd>{s.version || d.cuos_version || '—'}</dd>
               <dt>Agent</dt>    <dd>{d.agent_version || '—'}</dd>
               <dt>Last seen</dt><dd>{fmt.date(d.last_seen)}</dd>
-              <dt>Protocol</dt> <dd>{d.protocol_version ?? '—'}</dd>
+              <dt>Protocol</dt> <dd>{d.protocol_version ?? '—'}{(d.protocol_version ?? 2) < 2 && ' (old agent: upgrade it for a device token and privacy settings)'}</dd>
             </dl>
             <a class="device-link" href={`http://${d.hostname}:8030/`} target="_blank" rel="noreferrer">
               <i class="ti ti-external-link" /> Open device UI
@@ -128,7 +128,7 @@ function ShareRow({ label, on, note }) {
 function Enrollment({ device: d, canAct }) {
   const rotate = useAction(), revoke = useAction(), forget = useAction();
   const e = d.enrollment || {};
-  const state = e.state === 'active' ? 'token active' : e.state === 'revoked' ? 'revoked: must be approved again' : e.state === 'pending' ? 'waiting for approval' : 'not enrolled';
+  const state = e.state === 'active' ? 'token active' : e.state === 'revoked' ? 'revoked: must be approved again' : e.state === 'pending' ? 'waiting for approval' : e.state === 'legacy' ? 'protocol 1: shared secret, no token' : 'not enrolled';
   return (
     <>
       <dl>

@@ -26,7 +26,7 @@ row('meta.user admin / viewer', (await meta('admin')) + ' ' + (await meta('viewe
 const agent = (url, opts) => new Promise(res => { const w = new WebSocket(url, opts); w.on('open', () => res({ w, ok: true })); w.on('unexpected-response', (_, r) => res({ ok: false, code: r.statusCode })); w.on('error', () => {}); });
 const A = B.replace(/^http/, 'ws');
 const hdrOk = await agent(A + '/ws', { headers: bearer('dev-fleet-secret') }); row('agent WS /ws + Bearer header', hdrOk.ok ? 'open' : hdrOk.code); hdrOk.w?.close();
-const legacy = await agent(A + '/ws/dev-fleet-secret'); row('agent WS secret in the URL (removed): refused', legacy.ok ? 'open' : legacy.code); legacy.w?.close();
+const legacy = await agent(A + '/ws/dev-fleet-secret'); row('agent WS secret in the URL (protocol 1): open unless FLEET_LEGACY=off', legacy.ok ? 'open' : legacy.code); legacy.w?.close();
 const bad1 = await agent(A + '/ws/wrong'); const bad2 = await agent(A + '/ws', { headers: bearer('wrong') }); const bad3 = await agent(A + '/ws'); row('agent WS wrong secret/hdr/none', [bad1.code, bad2.code, bad3.code].join(' / '));
 const evil = await agent(A + '/ws', { headers: bearer('dev-fleet-secret') });
 const closed = new Promise(r => evil.w.on('close', (c, reason) => r(`${c} ${reason}`)));

@@ -395,6 +395,13 @@ function broadcastState() {
 //  - Rotating issues a new token over the live connection; the old one stays valid until the new one is used.
 // Tokens travel in the Authorization header and once in 'enrolled'/'token_rotate': run this behind TLS.
 const ENROLLMENT = process.env.FLEET_ENROLLMENT === 'approve' ? 'approve' : 'auto';
+// Protocol 1 agents (before the device tokens) connect to /ws/<FLEET_SECRET> and know nothing of tokens or
+// shares. FLEET_LEGACY=off turns them away. They are admitted on the shared secret alone, as they always were:
+//  - they get no token, and the server cannot tell two of them apart that share the secret (state 'legacy');
+//  - they send everything (shares stay null), and they cannot refuse a remote update;
+//  - a device that has a token (or was revoked) is never taken over through this path, so upgrading an agent
+//    closes the door behind it; revoking a legacy device keeps it out.
+const LEGACY = process.env.FLEET_LEGACY !== 'off';
 const newToken = () => 'ft_' + crypto.randomBytes(32).toString('base64url');
 const hashToken = t => crypto.createHash('sha256').update(t).digest('hex');
 const getTokenHash = db.prepare('SELECT token_hash FROM devices WHERE id=?');
@@ -440,9 +447,18 @@ function agentUpgrade(req, socket, head) {
   wss.handleUpgrade(req, socket, head, ws => { ws.ctx = ctx; ws.addr = ip; wss.emit('connection', ws, req); });
 }
 
+function legacyUpgrade(req, socket, head, secret) {
+  const ip = clientIp(req);
+  if (!LEGACY) return deny(socket, 401, 'legacy_agents_off');
+  if (tooMany(ip)) return deny(socket, 429, 'too_many_attempts');
+  if (!safeEq(secret, WS_SECRET)) { failed(ip); return deny(socket, 401, 'bad_secret'); }
+  wss.handleUpgrade(req, socket, head, ws => { ws.ctx = { mode: 'legacy' }; ws.addr = ip; wss.emit('connection', ws, req); });
+}
+
 server.on('upgrade', (req, socket, head) => {
   const parts = new URL(req.url, `http://${req.headers.host}`).pathname.split('/').filter(Boolean);
   if (parts.length === 1 && parts[0] === 'ws') return agentUpgrade(req, socket, head);
+  if (parts.length === 2 && parts[0] === 'ws') return legacyUpgrade(req, socket, head, decodeURIComponent(parts[1]));
   if (parts.length === 2 && parts[0] === 'ui-ws' && safeEq(parts[1], UI_WS_NONCE)) {
     return uiWss.handleUpgrade(req, socket, head, ws => {
       ws.on('error', wsError('ui'));
@@ -488,14 +504,17 @@ function onHello(ws, msg) {
   if (ws.deviceId || ws.pendingFor) return;                               // one hello per connection
   const uuid = msg.uuid;
   if (typeof uuid !== 'string' || !/^[A-Za-z0-9._-]{1,64}$/.test(uuid)) { ws.close(1008, 'invalid uuid'); return; }
-  if ((msg.protocol_version ?? 1) < 2) { ws.close(1008, 'protocol too old'); return; }
+  const legacy = ws.ctx.mode === 'legacy';
+  if (legacy !== ((msg.protocol_version ?? 1) < 2)) { ws.close(1008, legacy ? 'a protocol 2 agent uses the Authorization header' : 'protocol too old'); return; }
   if (ws.ctx.mode === 'token' && ws.ctx.deviceId !== uuid) { ws.close(1008, 'uuid does not match token'); return; }
   const hello = {
     hostname: str(msg.hostname, 128), cuos_version: str(msg.cuos_version, 64), agent_version: str(msg.agent_version, 64),
     tags: Array.isArray(msg.tags) ? msg.tags.filter(t => typeof t === 'string').slice(0, 20).map(t => t.slice(0, 64)) : [],
-    repo_url: str(msg.repo_url, 256), repo_branch: str(msg.repo_branch, 128), protocol_version: msg.protocol_version, shares: sanitizeShares(msg.shares),
+    repo_url: str(msg.repo_url, 256), repo_branch: str(msg.repo_branch, 128), protocol_version: msg.protocol_version ?? 1, shares: legacy ? null : sanitizeShares(msg.shares),
   };
   const known = clients[uuid], state = known?.enrollment?.state;
+
+  if (legacy) return onLegacyHello(ws, uuid, hello, known, state);
 
   if (ws.ctx.mode === 'token') {                                          // has its token: normal connection
     applyHello(uuid, hello, 'online');
@@ -503,7 +522,7 @@ function onHello(ws, msg) {
     return;
   }
   // bootstrap secret from here on
-  if ((!known || !state) && ENROLLMENT === 'auto') {                      // new device, open enrollment
+  if ((!known || !state || state === 'legacy') && ENROLLMENT === 'auto') {   // new device (or a protocol 1 one that was upgraded), open enrollment
     applyHello(uuid, hello, 'online');
     const token = issueToken(uuid, false);
     audit('device enrolled', { id: uuid, hostname: hello.hostname, addr: ws.addr });
@@ -526,6 +545,42 @@ function onHello(ws, msg) {
   audit('enrollment waiting for approval', { id: uuid, hostname: hello.hostname, addr: ws.addr, known: !!state && state !== 'pending' });
   fireWebhook('device_pending', clients[uuid]);
   broadcastState();
+}
+
+// a protocol 1 device: no token, identified by the id it claims, admitted on the shared secret
+function onLegacyHello(ws, uuid, hello, known, state) {
+  if (known?.enrollment?.has_token || state === 'revoked') {              // upgraded, or put out by an admin: not through the old door
+    audit('legacy connection refused', { id: uuid, addr: ws.addr, reason: state === 'revoked' ? 'revoked' : 'device has a token' });
+    ws.close(1008, state === 'revoked' ? 'revoked' : 'device has a token');
+    return;
+  }
+  if (!state || state === 'legacy' || state === 'pending') {
+    if (ENROLLMENT === 'auto' || state === 'legacy') {
+      applyHello(uuid, hello, 'online');
+      stmts.setEnrollState.run({ id: uuid, state: 'legacy' });
+      setEnrollment(uuid, { state: 'legacy', request: null });
+      if (!known || state !== 'legacy') audit('legacy device admitted', { id: uuid, hostname: hello.hostname, addr: ws.addr });
+      admit(ws, uuid); broadcastState();
+      return;
+    }
+    // approval is on: wait for an admin like any new device (the old agent ignores the message)
+    const since = new Date().toISOString();
+    if (!known || !state) {
+      applyHello(uuid, hello, 'pending');
+      stmts.setEnrollState.run({ id: uuid, state: 'pending' });
+      setEnrollment(uuid, { state: 'pending' });
+    }
+    stmts.setRequest.run({ id: uuid, since, addr: ws.addr, hostname: hello.hostname });
+    setEnrollment(uuid, { request: { since, addr: ws.addr, hostname: hello.hostname } });
+    pendingConns.get(uuid)?.close(1008, 'superseded');
+    pendingConns.set(uuid, ws); ws.pendingFor = uuid; ws.hello = hello;
+    ws.send(JSON.stringify({ type: 'pending', reason: 'approval required' }));
+    audit('enrollment waiting for approval', { id: uuid, hostname: hello.hostname, addr: ws.addr, legacy: true });
+    fireWebhook('device_pending', clients[uuid]);
+    broadcastState();
+    return;
+  }
+  ws.close(1008, 'unexpected state');
 }
 
 // --- Log intake -------------------------------------------------------------------------------
@@ -635,6 +690,17 @@ app.post('/api/clients/:id/approve', requireAdmin, (req, res) => {
   const ws = pendingConns.get(id);
   if (!c.enrollment?.request) return res.status(409).json({ error: 'no_request' });
   if (!ws || ws.readyState !== 1) return res.status(409).json({ error: 'device_not_waiting' });   // the token is only handed out on the live, bootstrap-authenticated connection
+  if (ws.ctx.mode === 'legacy') {                                         // protocol 1: nothing to hand out, it is simply let in
+    pendingConns.delete(id);
+    stmts.setRequest.run({ id, since: null, addr: null, hostname: null });
+    stmts.setEnrollState.run({ id, state: 'legacy' });
+    setEnrollment(id, { state: 'legacy', request: null });
+    applyHello(id, ws.hello, 'online');
+    audit('device approved', { id, by: req.user.name, addr: ws.addr, legacy: true });
+    admit(ws, id);
+    broadcastState();
+    return res.json({ status: 'approved' });
+  }
   wsConnections.get(id)?.close(1008, 're-enrolled');
   const token = issueToken(id, false);
   stmts.setRequest.run({ id, since: null, addr: null, hostname: null });

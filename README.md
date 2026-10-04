@@ -259,6 +259,7 @@ The server is configured through environment variables:
 | Variable | Default | Meaning |
 |---|---|---|
 | `FLEET_SECRET` | `changeme` | The bootstrap secret agents enrol with. The server warns while it is the default. |
+| `FLEET_LEGACY` | `on` | `off` refuses agents that still speak protocol 1 (see *Older agents* below). |
 | `FLEET_ENROLLMENT` | `auto` | `auto`: a device that knows the secret and is not yet known is enrolled at once. `approve`: an administrator has to let it in first. |
 | `FLEET_USERS_FILE` | `<data dir>/users.json` | JSON array of `{ "name", "password", "role" }`. `role` is `admin` (may trigger updates) or `viewer` (read only, no device logs); no role means `viewer`. Passwords may be bcrypt hashes (`$2b$…`) or plain text. |
 | `FLEET_ADMIN_USER`, `FLEET_ADMIN_PASS` | `admin` / `admin` | Still work and are an admin. The server warns while the password is the default. |
@@ -311,7 +312,22 @@ behalf of another.
 
 The roles are enforced by the server. After 10 wrong passwords from one address,
 logins from it are refused for five minutes. The UI is served only to signed-in
-users. Agents authenticate with a bearer header; there is no secret in any URL.
+users. Agents authenticate with a bearer header; current agents never put a secret in a URL.
+
+### Older agents (protocol 1)
+
+Devices that still run an agent from before the device tokens (it connects to `/ws/<FLEET_SECRET>` and
+sends `protocol_version` 1) keep working, so a fleet can be upgraded device by device. The server admits
+them on the shared secret alone, as before, with these limits:
+
+- They get **no token**, and the server cannot tell two of them apart that share the secret and an id (state `legacy` in the UI).
+- They send everything (the owner's `fleet_share` does not exist for them) and cannot refuse a remote update; they send no logs.
+- With `FLEET_ENROLLMENT=approve` they wait for an administrator like any new device. Approving lets them in without a token.
+- Once a device has a token, or an administrator revoked it, the old door stays shut for its id: an agent that is
+  upgraded takes over the id of its `legacy` record and gets a token, and nobody can fall back to protocol 1 for it.
+- `FLEET_LEGACY=off` refuses protocol 1 altogether. Upgrade the agents, then turn it off.
+
+The UI marks such a device in its detail view (Protocol 1, state "protocol 1: shared secret, no token").
 
 ## Optional: Dev-Container
 
