@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import express from 'express';
 import { engine } from 'express-handlebars';
-import basicAuth from 'basic-auth';
+import { parse as parseBasicAuth } from 'basic-auth';
 import bodyParser from 'body-parser';
 import net from 'net';
 import path from 'path';
@@ -93,7 +93,7 @@ app.set('view engine', 'handlebars');
 app.set('views', path.join(__dirname, 'views'));
 
 function auth(req, res, next) {
-  const user = basicAuth(req);
+  const user = parseBasicAuth(req.headers.authorization ?? '');
 
   if (!user || user.name !== USER) {
     res.set('WWW-Authenticate', 'Basic realm="cuos"');
