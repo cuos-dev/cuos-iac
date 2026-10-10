@@ -61,6 +61,9 @@
           <div class="sys-row"><span class="sys-label">Last update check:</span> <span class="sys-value">{{formatDate state.last_update_check}}</span></div>
           <div class="sys-row"><span class="sys-label">Slot:</span> <span class="sys-value">{{state.slot}}</span></div>
           <div><span class="sys-label">Update status:</span><br/><span class="sys-value">{{state.update_state}}</span></div>
+          {{#if state.local_overrides.length}}
+          <div><span class="sys-label">Local overrides:</span> <span class="sys-value">{{state.local_overrides.length}}</span><br/><span class="sys-value">{{#each state.local_overrides}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</span><br/><small>Set on the device, over the repository's system.json, until the repository changes the same key.</small></div>
+          {{/if}}
         </div>
         {{/if}}
         <div class="sys-group sys-iac">

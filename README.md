@@ -95,9 +95,27 @@ deployment source.
 
 1. Pull the repository (`iac_repo_branch`, `iac_repo_subdir`).
 2. Verify the last commit's signature, if signers are configured.
-3. Check each service's `x-digest` against the image that was pulled.
-4. Bring the compose file up.
-5. Sleep `iac_poll_interval`, then start over.
+3. Hand the repository's `system.json` to the device, if it differs from what
+   the device was given last — see below.
+4. Check each service's `x-digest` against the image that was pulled.
+5. Bring the compose file up.
+6. Sleep `iac_poll_interval`, then start over.
+
+**The repository's `system.json` is the whole of what the device is told from
+outside.** With its `#include`s resolved, the manager sends it as a
+replacement (`cuos update` with `"replace": true`), so a key deleted from the
+repository is gone from the device after the next cycle — stale registry
+credentials, for one. That holds for keys the device got only from its boot
+partition, too: whatever the device needs, `iac_repo_url` included, belongs in
+the repository's `system.json`.
+
+Settings made on the device itself, such as a network configured at the
+console, stay until the repository changes the same key; the WebUI lists them as
+local overrides. The manager compares the repository with what the device got
+from outside, not with `/system.json`, so a local override does not make it
+apply again every cycle. This needs a CuOS with configuration layers
+(`cuos config`) — on an older one nothing is applied and the cycle fails. See
+[Configuration layers](https://github.com/cuos-dev/cuos/blob/HEAD/docs/common/cuos-api.md#configuration-layers).
 
 The interval is shortened by a random few minutes, so a fleet does not hit the
 registry in lockstep. `cuos trigger-update` on the device, the WebUI's button and
@@ -196,8 +214,9 @@ which describes the whole system.
 ## Optional: WebUI
 
 `webui/` — a web interface on port 8030: when the next pull is due, a button to
-trigger one now, `docker ps` as a table, CPU/RAM/disk/uptime, the system log, and
-the CuOS actions (shutdown, reboot, rollback, factory reset).
+trigger one now, `docker ps` as a table, CPU/RAM/disk/uptime, the settings the
+device overrides locally, the system log, and the CuOS actions (shutdown, reboot,
+rollback, factory reset).
 
 ```yml
 include:

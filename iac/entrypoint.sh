@@ -213,54 +213,57 @@ cuos_api() {
   return 0
 }
 
-hash_file() {
-  file="$1"
-  jsonkey=".${2:-""}"
-  if [[ "$file" != "-" && ! -f "$file" ]]; then return 1; fi
-  jq "${jsonkey}" "$file" | sha256sum | awk '{print $1}'
-  return "$?"
+# The configuration this device got from outside: on CuOS the remote layer
+# ("cuos config:json"), not /system.json. That one is the remote layer with
+# what was set on the device itself (a network configured at the console) over
+# it, so it would never equal the repository's while the device overrides a key,
+# and every cycle would apply again. A CuOS without "config:json" is not
+# supported: there the call fails and nothing is applied.
+# A "local" system has no layers, and its /system.json is what this manager
+# wrote.
+current_remote_config() {
+  if [[ "${SYSTEM_TYPE}" == "cuos" ]]; then
+    cuos_api "config:json" | jq -ce '.remote | objects'
+  else
+    jq -c . "${CONFIG_PATH}"
+  fi
 }
 
-are_json_files_different() {
-  file1="$1"
-  file2="$2"
-  jsonkey="${3:-""}"
-
-  local hash_file1
-  if ! hash_file1=$(hash_file "${file1}" "${jsonkey}"); then
-    report "Error: Invalid JSON file $file1."
-    return 2
-  fi
-  local hash_file2
-  if ! hash_file2=$(hash_file "${file2}" "${jsonkey}"); then
-    report "Error: Invalid JSON file $file2."
-    return 2
-  fi
-
-  if [ "$hash_file1" != "$hash_file2" ]; then
-    return 0
-  fi
-  return 1
+# $1 and $2 are JSON, $3 an optional key to compare alone. Equal content is
+# equal, whatever the order of the keys.
+json_differs() {
+  jq -en --argjson a "$1" --argjson b "$2" --arg key "${3:-}" '
+    if $key == "" then $a != $b else $a[$key] != $b[$key] end' >/dev/null
 }
 
+# The repository's system.json is the whole of what this device is to be told
+# from outside, so it *replaces* the remote layer ("replace": true): a key
+# deleted from the repository is gone from the device on the next cycle. Keys
+# set on the device stay until the repository changes them.
 apply_system_json_if_changed() {
   local repo_system_json="${REPO_DIR}${REPO_DIR_SUBDIR}/system.json"
   if [ ! -f "$repo_system_json" ]; then
     return 1
   fi
   local merged_config
-  merged_config="$("${MERGECONFIGS}" "${repo_system_json}")" || return 1
+  merged_config="$("${MERGECONFIGS}" "${repo_system_json}" | jq -c .)" || return 1
+
+  local current_config
+  if ! current_config="$(current_remote_config)"; then
+    report "Error: Could not read the current configuration of the device."
+    return 2
+  fi
 
   local need_update_ca_certs=0
-  if echo "${merged_config}" | are_json_files_different "-" "${CONFIG_PATH}" custom_ca_certs; then
+  if json_differs "${merged_config}" "${current_config}" custom_ca_certs; then
     need_update_ca_certs=1
   fi
 
-  if echo "${merged_config}" | are_json_files_different "-" "${CONFIG_PATH}"; then
+  if json_differs "${merged_config}" "${current_config}"; then
     if [[ "${SYSTEM_TYPE}" == "cuos" ]]; then
       report "Info: Applying new system.json via socket..."
       local update_res
-      update_res="$(echo "${merged_config}" | jq '{"config": .}' \
+      update_res="$(echo "${merged_config}" | jq '{"config": ., "replace": true}' \
         | cuos_api "update:json" "-")"
       local update_res_err
       update_res_err="$(echo "${update_res}" | jq -r '.err')"
@@ -272,7 +275,7 @@ apply_system_json_if_changed() {
       fi
     else # assuming local type
       report "Info: Applying new system.json directly..."
-      echo "${merged_config}" >"${CONFIG_PATH}"
+      echo "${merged_config}" | jq . >"${CONFIG_PATH}"
     fi
   else
     # no changes
