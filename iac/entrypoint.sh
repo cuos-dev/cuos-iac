@@ -216,9 +216,12 @@ cuos_api() {
 # The configuration this device got from outside: on CuOS the remote layer
 # ("cuos config:json"), not /system.json. That one is the remote layer with
 # what was set on the device itself (a network configured at the console) over
-# it, so it would never equal the repository's while the device overrides a key,
-# and every cycle would apply again. A CuOS without "config:json" is not
-# supported: there the call fails and nothing is applied.
+# it, so it would never equal the repository's while the device overrides a key.
+# A configuration-only update restarts this manager before iac_commit is
+# recorded, so the commit is applied again after the restart; that second pass
+# has to find "no change", or it would restart the manager forever. A CuOS
+# without "config:json" is not supported: there the call fails and nothing is
+# applied.
 # A "local" system has no layers, and its /system.json is what this manager
 # wrote.
 current_remote_config() {

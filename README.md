@@ -111,11 +111,17 @@ the repository's `system.json`.
 
 Settings made on the device itself, such as a network configured at the
 console, stay until the repository changes the same key; the WebUI lists them as
-local overrides. The manager compares the repository with what the device got
-from outside, not with `/system.json`, so a local override does not make it
-apply again every cycle. This needs a CuOS with configuration layers
-(`cuos config`) — on an older one nothing is applied and the cycle fails. See
+local overrides. This needs a CuOS with configuration layers (`cuos config`) —
+on an older one nothing is applied and the cycle fails. See
 [Configuration layers](https://github.com/cuos-dev/cuos/blob/HEAD/docs/common/cuos-api.md#configuration-layers).
+
+The manager compares the repository with what the device got from outside (the
+remote layer), not with `/system.json`. It applies only on a new commit or
+subdirectory, but a configuration-only update restarts the manager before the
+commit is recorded, so the same commit is applied once more after the restart.
+Compared with `/system.json`, which carries the local overrides too, it would
+never be equal while the device overrides a key, and that restart would repeat
+forever.
 
 **A signed configuration pasted into the WebUI (*Config*, made with
 `tool.sh config-sign`) stands in for the repository** when the device cannot
