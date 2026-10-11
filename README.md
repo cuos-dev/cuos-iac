@@ -117,6 +117,13 @@ apply again every cycle. This needs a CuOS with configuration layers
 (`cuos config`) — on an older one nothing is applied and the cycle fails. See
 [Configuration layers](https://github.com/cuos-dev/cuos/blob/HEAD/docs/common/cuos-api.md#configuration-layers).
 
+**A signed configuration pasted into the WebUI (*Config*, made with
+`tool.sh config-sign`) stands in for the repository** when the device cannot
+reach it, and is treated the same: it replaces what the device got from outside.
+So it must be the complete `system.json`, as the repository would hold it — a
+key left out is removed from the device. It is accepted only if signed by a key
+in `iac_repo_signing_keys`, and for 15 minutes after signing.
+
 The interval is shortened by a random few minutes, so a fleet does not hit the
 registry in lockstep. `cuos trigger-update` on the device, the WebUI's button and
 `tool.sh update-iac-local` all wake the loop early.

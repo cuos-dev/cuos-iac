@@ -3,6 +3,7 @@
     <h1>CuOS IaC Config</h1>
     <p>Please input signed configuration:</p>
     <p>Command: <code>tool.sh config-sign system.json</code></p>
+    <p>It replaces the configuration the device got from outside, as the repository's system.json does: sign the complete system.json, a key left out is removed.</p>
     <form method="POST">
       <textarea name="config" style="width: 80vw; height: 400px; border: 2px solid gray; color: white; background-color: transparent;"></textarea>
       <br/>

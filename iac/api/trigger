@@ -139,7 +139,10 @@ elif [[ "${COMMAND}" = "config" ]]; then
     echo "Config signed by ${name}"
     echo "Passing config to system ..."
 
-    echo "${json}" | jq '{"config": .config}' | cuos_api "update" "-"
+    # Stands in for the repository when it cannot be reached, so it is the
+    # whole configuration and replaces the remote layer as the repository's
+    # system.json does: a key left out is removed.
+    echo "${json}" | jq '{"config": .config, "replace": true}' | cuos_api "update" "-"
     exit 0
   fi
 
