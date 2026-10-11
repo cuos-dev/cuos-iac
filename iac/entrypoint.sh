@@ -230,10 +230,19 @@ current_remote_config() {
 }
 
 # $1 and $2 are JSON, $3 an optional key to compare alone. Equal content is
-# equal, whatever the order of the keys.
+# equal, whatever the order of the keys. Returns 0 if they differ, 1 if not,
+# 2 if they could not be compared. The JSON goes in on stdin: as an argument
+# it is limited to 128 KiB on Linux, and a custom_ca_certs bundle is more.
 json_differs() {
-  jq -en --argjson a "$1" --argjson b "$2" --arg key "${3:-}" '
-    if $key == "" then $a != $b else $a[$key] != $b[$key] end' >/dev/null
+  local rc
+  printf '%s\n%s\n' "$1" "$2" | jq -es --arg key "${3:-}" '
+    .[0] as $a | .[1] as $b
+    | if $key == "" then $a != $b else $a[$key] != $b[$key] end' >/dev/null
+  rc="$?"
+  case "${rc}" in
+    0|1) return "${rc}" ;;
+    *) return 2 ;;
+  esac
 }
 
 # The repository's system.json is the whole of what this device is to be told
@@ -254,12 +263,22 @@ apply_system_json_if_changed() {
     return 2
   fi
 
-  local need_update_ca_certs=0
-  if json_differs "${merged_config}" "${current_config}" custom_ca_certs; then
-    need_update_ca_certs=1
+  local need_update_ca_certs=0 differs
+  json_differs "${merged_config}" "${current_config}" custom_ca_certs
+  case "$?" in
+    0) need_update_ca_certs=1 ;;
+    1) ;;
+    *) report "Error: Could not compare custom_ca_certs with the device's."; return 2 ;;
+  esac
+
+  json_differs "${merged_config}" "${current_config}"
+  differs="$?"
+  if [[ "${differs}" == "2" ]]; then
+    report "Error: Could not compare system.json with the device's configuration."
+    return 2
   fi
 
-  if json_differs "${merged_config}" "${current_config}"; then
+  if [[ "${differs}" == "0" ]]; then
     if [[ "${SYSTEM_TYPE}" == "cuos" ]]; then
       report "Info: Applying new system.json via socket..."
       local update_res
