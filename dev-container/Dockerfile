@@ -18,16 +18,16 @@ RUN apt-get -y update &&\
 	# Network \
 	iproute2 dnsutils iputils-ping traceroute net-tools tcpdump \
 	netcat-openbsd nmap curl wget ethtool openssh-client iptables iftop \
-	cifs-utils smbclient socat \
+	socat \
 	# Languages & dev tools \
-	python3 python3-pip nodejs npm make shellcheck gdb \
+	python3 python3-pip nodejs npm make shellcheck \
 	man manpages \
 	# Converter & Formats, like JSON etc \
-	jq python3-jsonschema libdata-hexdump-perl bzip2 \
+	jq python3-jsonschema bzip2 \
 	# Docker \
 	docker-cli docker-compose \
 	# Others \
-	gnupg2 cron pandoc \
+	gnupg2 \
 	# Servers \
 	openssh-server \
 	&& rm -rf /var/lib/apt/lists/* \
