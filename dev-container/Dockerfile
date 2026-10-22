@@ -36,6 +36,10 @@ RUN apt-get -y update &&\
 	&& update-alternatives --set editor /usr/bin/vim.basic \
 	# Debian loads it for login shells only; docker exec and screen start non-login ones \
 	&& echo '. /etc/profile.d/bash_completion.sh' >>/etc/bash.bashrc \
+	# On the /root volume, so crontabs survive a new container. cron refuses a \
+	# symlinked crontab file, but follows a symlinked directory \
+	&& rm -rf /var/spool/cron/crontabs \
+	&& ln -s /root/.crontabs /var/spool/cron/crontabs \
 	&& /usr/sbin/locale-gen
 
 COPY entrypoint.sh /

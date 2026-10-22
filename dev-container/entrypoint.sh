@@ -32,6 +32,11 @@ else
     echo "$KEYS" >>/root/.ssh/authorized_keys
 fi
 
+# The crontab spool lives on the /root volume; same mode as Debian's own
+mkdir -p /root/.crontabs
+chown root:crontab /root/.crontabs
+chmod 1730 /root/.crontabs
+
 # Start cron, it forks into the background
 cron
 
