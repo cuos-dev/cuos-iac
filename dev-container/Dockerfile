@@ -10,7 +10,7 @@ ENV container=docker
 RUN apt-get -y update &&\
 	DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
 	# General \
-	locales \
+	locales bash-completion \
 	# Editors and Session \
 	vim nano git screen tmux less \
 	# System and Processes \
@@ -34,6 +34,8 @@ RUN apt-get -y update &&\
 	&& rm -f /etc/ssh/ssh_host_* \
 	&& echo "en_US.UTF-8 UTF-8\nen_GB.UTF-8 UTF-8\nde_DE.UTF-8 UTF-8\nfr_FR.UTF-8 UTF-8\nes_ES.UTF-8 UTF-8\npt_BR.UTF-8 UTF-8\nja_JP.UTF-8 UTF-8" >/etc/locale.gen \
 	&& update-alternatives --set editor /usr/bin/vim.basic \
+	# Debian loads it for login shells only; docker exec and screen start non-login ones \
+	&& echo '. /etc/profile.d/bash_completion.sh' >>/etc/bash.bashrc \
 	&& /usr/sbin/locale-gen
 
 COPY entrypoint.sh /
