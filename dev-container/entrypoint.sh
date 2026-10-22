@@ -32,6 +32,9 @@ else
     echo "$KEYS" >>/root/.ssh/authorized_keys
 fi
 
+# Start cron, it forks into the background
+cron
+
 # Start ssh daemon
 mkdir -p /run/sshd
 

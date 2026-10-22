@@ -14,20 +14,22 @@ RUN apt-get -y update &&\
 	# Editors and Session \
 	vim nano git screen tmux less \
 	# System and Processes \
-	htop procps lsof strace sysstat iotop \
+	htop procps psmisc lsof strace sysstat iotop \
 	# Network \
 	iproute2 dnsutils iputils-ping traceroute net-tools tcpdump \
 	netcat-openbsd nmap curl wget ethtool openssh-client iptables iftop \
-	socat \
+	cifs-utils socat mtr-tiny \
 	# Languages & dev tools \
 	python3 python3-pip nodejs npm make shellcheck \
 	man manpages \
 	# Converter & Formats, like JSON etc \
-	jq python3-jsonschema bzip2 \
+	jq python3-jsonschema libdata-hexdump-perl bzip2 zip unzip \
+	# Files \
+	tree ncdu pv ripgrep rsync \
 	# Docker \
 	docker-cli docker-compose \
 	# Servers \
-	openssh-server \
+	openssh-server cron \
 	&& rm -rf /var/lib/apt/lists/* \
 	&& rm -f /etc/ssh/ssh_host_* \
 	&& echo "en_US.UTF-8 UTF-8\nen_GB.UTF-8 UTF-8\nde_DE.UTF-8 UTF-8\nfr_FR.UTF-8 UTF-8\nes_ES.UTF-8 UTF-8\npt_BR.UTF-8 UTF-8\nja_JP.UTF-8 UTF-8" >/etc/locale.gen \
