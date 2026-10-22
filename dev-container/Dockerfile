@@ -26,8 +26,6 @@ RUN apt-get -y update &&\
 	jq python3-jsonschema bzip2 \
 	# Docker \
 	docker-cli docker-compose \
-	# Others \
-	gnupg2 \
 	# Servers \
 	openssh-server \
 	&& rm -rf /var/lib/apt/lists/* \
