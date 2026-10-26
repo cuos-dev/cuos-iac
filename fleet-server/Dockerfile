@@ -10,8 +10,9 @@ EXPOSE 8085
 ENV FLEET_SERVER_PORT=8085
 CMD ["npm","start"]
 
-COPY fleet-server/package*.json ./
+COPY package*.json ./
 RUN npm install --omit=dev || npm install --omit=dev
 
-COPY LICENSE.txt NOTICE /usr/share/licenses/cuos/
-COPY fleet-server/server.js ./
+# repo: the repository root, a named build context (--build-context repo=..)
+COPY --from=repo LICENSE.txt NOTICE /usr/share/licenses/cuos/
+COPY server.js ./

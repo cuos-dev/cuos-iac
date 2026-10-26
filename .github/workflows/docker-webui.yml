@@ -56,8 +56,10 @@ jobs:
       - name: Build and push Docker image - cuos-iac-webui
         uses: docker/build-push-action@v7
         with:
-          context: ./
+          context: ./webui
           file: ./webui/Dockerfile
+          build-contexts: |
+            repo=.
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/cuos-iac-webui:${{ steps.vars.outputs.tag }}

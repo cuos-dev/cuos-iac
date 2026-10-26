@@ -43,9 +43,10 @@ RUN apt-get update && \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY LICENSE.txt NOTICE /usr/share/licenses/cuos/
-COPY iac/api/* /api/
-COPY iac/*.sh /app/
+# repo: the repository root, a named build context (--build-context repo=..)
+COPY --from=repo LICENSE.txt NOTICE /usr/share/licenses/cuos/
+COPY api/* /api/
+COPY *.sh /app/
 
 # Ensure scripts are executable inside the image
 RUN chmod +x /app/*.sh /api/* || true

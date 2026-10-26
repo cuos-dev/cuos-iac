@@ -8,7 +8,8 @@ WORKDIR /app
 VOLUME ["/data"]
 CMD ["npm","start"]
 
-COPY fleet-agent/package*.json ./
+COPY package*.json ./
 RUN npm install --omit=dev || npm install --omit=dev
-COPY LICENSE.txt NOTICE /usr/share/licenses/cuos/
-COPY fleet-agent/agent.js ./
+# repo: the repository root, a named build context (--build-context repo=..)
+COPY --from=repo LICENSE.txt NOTICE /usr/share/licenses/cuos/
+COPY agent.js ./

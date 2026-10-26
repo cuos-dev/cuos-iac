@@ -56,8 +56,10 @@ jobs:
       - name: Build and push Docker image - cuos-iac-fleet-server
         uses: docker/build-push-action@v7
         with:
-          context: ./
+          context: ./fleet-server
           file: ./fleet-server/Dockerfile
+          build-contexts: |
+            repo=.
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/cuos-iac-fleet-server:${{ steps.vars.outputs.tag }}

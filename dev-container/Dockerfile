@@ -45,9 +45,10 @@ RUN apt-get -y update &&\
 	&& ln -s /root/.crontabs /var/spool/cron/crontabs \
 	&& /usr/sbin/locale-gen
 
-COPY LICENSE.txt NOTICE /usr/share/licenses/cuos/
-COPY dev-container/entrypoint.sh /
-COPY dev-container/sshd_config_local.conf /etc/ssh/sshd_config.d/
-COPY dev-container/vimrc.local /etc/vim/
-COPY dev-container/gitconfig /etc/
-COPY dev-container/cuos dev-container/cuos-* dev-container/docker dev-container/docker-compose /usr/local/bin/
+# repo: the repository root, a named build context (--build-context repo=..)
+COPY --from=repo LICENSE.txt NOTICE /usr/share/licenses/cuos/
+COPY entrypoint.sh /
+COPY sshd_config_local.conf /etc/ssh/sshd_config.d/
+COPY vimrc.local /etc/vim/
+COPY gitconfig /etc/
+COPY cuos cuos-* docker docker-compose /usr/local/bin/

@@ -8,9 +8,10 @@ WORKDIR /app
 EXPOSE 3000
 CMD ["node", "app.js"]
 
-COPY webui/package*.json ./
+COPY package*.json ./
 RUN npm install --omit=dev || npm install --omit=dev
 
-COPY LICENSE.txt NOTICE /usr/share/licenses/cuos/
-COPY webui/ ./
+# repo: the repository root, a named build context (--build-context repo=..)
+COPY --from=repo LICENSE.txt NOTICE /usr/share/licenses/cuos/
+COPY . .
 
