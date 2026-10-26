@@ -3,6 +3,9 @@ FROM debian:13.7
 
 VOLUME ["/etc/ssh/keys", "/root"]
 ENTRYPOINT ["/entrypoint.sh"]
+# CuOS's own files; the packages in the image carry their own licences.
+LABEL org.opencontainers.image.licenses=Apache-2.0
+
 WORKDIR /root
 
 ENV container=docker
@@ -42,8 +45,9 @@ RUN apt-get -y update &&\
 	&& ln -s /root/.crontabs /var/spool/cron/crontabs \
 	&& /usr/sbin/locale-gen
 
-COPY entrypoint.sh /
-COPY sshd_config_local.conf /etc/ssh/sshd_config.d/
-COPY vimrc.local /etc/vim/
-COPY gitconfig /etc/
-COPY cuos cuos-* docker docker-compose /usr/local/bin/
+COPY LICENSE.txt NOTICE /usr/share/licenses/cuos/
+COPY dev-container/entrypoint.sh /
+COPY dev-container/sshd_config_local.conf /etc/ssh/sshd_config.d/
+COPY dev-container/vimrc.local /etc/vim/
+COPY dev-container/gitconfig /etc/
+COPY dev-container/cuos dev-container/cuos-* dev-container/docker dev-container/docker-compose /usr/local/bin/

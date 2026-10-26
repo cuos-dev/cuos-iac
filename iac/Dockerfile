@@ -7,6 +7,9 @@ VOLUME ["/volume", "/root/.docker"]
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV container=docker
+# CuOS's own files; the packages in the image carry their own licences.
+LABEL org.opencontainers.image.licenses=Apache-2.0
+
 LABEL dev.cuos.iac="1"
 LABEL dev.cuos.app_command="\
     --memory 512MB \
@@ -40,8 +43,9 @@ RUN apt-get update && \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY api/* /api/
-COPY *.sh /app/
+COPY LICENSE.txt NOTICE /usr/share/licenses/cuos/
+COPY iac/api/* /api/
+COPY iac/*.sh /app/
 
 # Ensure scripts are executable inside the image
 RUN chmod +x /app/*.sh /api/* || true
