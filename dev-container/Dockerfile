@@ -30,7 +30,7 @@ RUN apt-get -y update &&\
 	# Files \
 	tree ncdu pv ripgrep rsync \
 	# Docker \
-	docker-cli docker-compose \
+	docker-cli docker-compose docker-buildx \
 	# Servers \
 	openssh-server cron \
 	&& rm -rf /var/lib/apt/lists/* \
