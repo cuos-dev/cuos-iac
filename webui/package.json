@@ -13,7 +13,7 @@
   "dependencies": {
     "basic-auth": "^3.0.0",
     "bcrypt": "^6.0.0",
-    "body-parser": "^2.3.0",
+    "body-parser": "^2.4.0",
     "express": "^5.2.1",
     "express-handlebars": "^9.0.1"
   }
