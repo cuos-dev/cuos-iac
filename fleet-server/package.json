@@ -12,7 +12,7 @@
   "dependencies": {
     "express": "^5.3.0",
     "ws": "^8.22.1",
-    "basic-auth": "^3.0.0",
+    "basic-auth": "^3.1.0",
     "express-handlebars": "^9.0.4"
   }
 }
