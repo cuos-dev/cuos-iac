@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-FROM debian:13.7
+FROM debian:13.8
 
 VOLUME ["/etc/ssh/keys", "/root"]
 ENTRYPOINT ["/entrypoint.sh"]
